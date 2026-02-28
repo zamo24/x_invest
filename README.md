@@ -1,0 +1,145 @@
+# X Investor Copilot (MVP)
+
+Browser extension + web app that lets users save X (Twitter) tweets/threads and chat over a personal, source-grounded RAG library with citations to exact tweet URLs.
+
+## Monorepo Structure
+
+- `apps/web` - Next.js App Router dashboard + Clerk auth + token management + library/chat UI
+- `apps/api` - FastAPI + SQLAlchemy + Alembic + pgvector ingest/retrieval/chat APIs
+- `apps/extension` - Manifest V3 extension (options PAT, content script save actions, side panel chat)
+- `infra/docker-compose.yml` - Local dev compose stack
+
+## Prerequisites
+
+- Docker + Docker Compose
+- Node 20+
+- pnpm 10+
+- Python 3.11+ (optional for local non-docker API dev)
+- Clerk account/app for web auth
+
+## Environment Setup
+
+1. Copy env template:
+
+```bash
+cp .env.example .env
+```
+
+2. Fill Clerk vars in `.env`:
+
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+
+3. Set `TOKEN_PEPPER` to a long random string.
+
+## Run Locally (Docker)
+
+From repo root:
+
+```bash
+docker compose up --build
+```
+
+Services:
+
+- Web: `http://localhost:3000`
+- API: `http://localhost:8000`
+- Postgres: `localhost:5432`
+
+`api` container runs migrations at startup:
+
+```bash
+alembic upgrade head
+```
+
+## Run With Infra Compose File
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+## API Endpoints (MVP)
+
+- `POST /v1/tokens` (Clerk-header auth) create PAT
+- `GET /v1/tokens` list PATs
+- `DELETE /v1/tokens/{id}` revoke PAT
+- `POST /v1/ingest/x` (Bearer PAT) ingest tweet/thread capture
+- `POST /v1/chat` (Bearer PAT or Clerk headers) source-grounded chat
+- `GET /v1/library/items` (Bearer PAT or Clerk headers)
+- `GET /v1/library/threads` (Bearer PAT or Clerk headers)
+- `GET /v1/library/threads/{id}` (Bearer PAT or Clerk headers)
+
+## Curl Examples
+
+### 1) Create token (web/Clerk context)
+
+```bash
+curl -X POST http://localhost:8000/v1/tokens \
+  -H "Content-Type: application/json" \
+  -H "x-clerk-user-id: user_123" \
+  -H "x-clerk-email: user@example.com" \
+  -d '{"name":"Extension PAT"}'
+```
+
+### 2) Ingest X payload (extension/PAT)
+
+```bash
+curl -X POST http://localhost:8000/v1/ingest/x \
+  -H "Authorization: Bearer xic_pat_REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capture_type": "thread",
+    "page_url": "https://x.com/someuser/status/1234567890",
+    "root_tweet_id": "1234567890",
+    "root_tweet_url": "https://x.com/someuser/status/1234567890",
+    "tweets": [
+      {
+        "tweet_id": "1234567890",
+        "url": "https://x.com/someuser/status/1234567890",
+        "author_handle": "someuser",
+        "author_name": "Some User",
+        "text": "HBM demand still outstrips supply.",
+        "captured_at": "2026-02-27T01:00:00Z"
+      }
+    ],
+    "captured_count": 1,
+    "is_partial": false
+  }'
+```
+
+### 3) Chat request
+
+```bash
+curl -X POST http://localhost:8000/v1/chat \
+  -H "Authorization: Bearer xic_pat_REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Bull vs bear case on HBM bottleneck from my saved items",
+    "scope": "all",
+    "top_k": 8
+  }'
+```
+
+## Extension Setup (Chrome)
+
+1. Open `chrome://extensions`
+2. Enable Developer mode
+3. Click **Load unpacked**
+4. Select `apps/extension`
+5. Open extension options, paste PAT and API base URL (`http://localhost:8000`)
+6. Visit `https://x.com/*`, use:
+   - `Save Tweet`
+   - `Save Thread`
+   - `Open Copilot`
+
+## Clerk Notes
+
+- Web routes under `/app/*` are protected by Clerk middleware.
+- FastAPI token endpoints use `x-clerk-user-id` headers forwarded by Next route handlers.
+- MVP does not validate Clerk JWT inside FastAPI.
+
+## Dev Notes
+
+- DB extension init: `infra/db/init.sql` includes `CREATE EXTENSION IF NOT EXISTS vector;`
+- Embeddings are deterministic local hash embeddings for MVP (no external model required).
+- `/v1/chat` enforces source-grounded output with citations and marks unsupported claims as `Unknown / Speculation`.

@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>X Investor Copilot Settings</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui; margin: 24px; max-width: 720px; }
+      label { display: block; margin-top: 16px; font-weight: 600; }
+      input { width: 100%; padding: 10px; margin-top: 6px; }
+      button { margin-top: 16px; padding: 10px 14px; }
+      code { background: #eef4ff; padding: 2px 6px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <h1>X Investor Copilot</h1>
+    <p>Paste your Personal Access Token from <code>/app/settings/tokens</code>.</p>
+
+    <label for="pat">Personal Access Token</label>
+    <input id="pat" type="password" placeholder="xic_pat_..." />
+
+    <label for="apiBase">API Base URL</label>
+    <input id="apiBase" type="url" placeholder="http://localhost:8000" />
+
+    <button id="save">Save Settings</button>
+    <p id="status"></p>
+
+    <script src="options.js"></script>
+  </body>
+</html>
