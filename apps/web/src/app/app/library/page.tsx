@@ -57,7 +57,7 @@ export default function LibraryPage() {
               <div>
                 <Link href={`/app/threads/${thread.id}`}>{thread.title}</Link>
                 <p>
-                  {thread.item_count} items {thread.is_partial ? "• partial capture" : ""}
+                  v{thread.capture_version} • {thread.item_count} items {thread.is_partial ? "• partial capture" : ""}
                 </p>
               </div>
             </li>

@@ -8,13 +8,18 @@ settings = get_settings()
 
 app = FastAPI(title=settings.app_name)
 
+
+def _parse_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_allow_origins,
+    allow_origins=_parse_csv(settings.cors_allow_origins),
     allow_origin_regex=settings.cors_allow_origin_regex,
     allow_credentials=settings.cors_allow_credentials,
-    allow_methods=settings.cors_allow_methods,
-    allow_headers=settings.cors_allow_headers,
+    allow_methods=_parse_csv(settings.cors_allow_methods),
+    allow_headers=_parse_csv(settings.cors_allow_headers),
 )
 
 app.include_router(api_router)

@@ -13,6 +13,7 @@ export type LibraryThreadListItem = {
   root_url: string | null;
   title: string;
   captured_at: string;
+  capture_version: number;
   is_partial: boolean;
   item_count: number;
 };

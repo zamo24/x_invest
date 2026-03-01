@@ -68,6 +68,7 @@ class XThread(Base):
     title: Mapped[str] = mapped_column(String(280), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    capture_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     partial_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 

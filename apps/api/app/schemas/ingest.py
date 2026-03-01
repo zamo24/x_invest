@@ -39,6 +39,7 @@ class IngestXRequest(BaseModel):
 
 class IngestXResponse(BaseModel):
     thread_id: UUID | None = None
+    thread_version: int | None = None
     item_ids: list[UUID]
     stored_count: int
     is_partial: bool
@@ -50,6 +51,7 @@ class LibraryThreadListItem(BaseModel):
     root_url: str | None
     title: str
     captured_at: datetime
+    capture_version: int
     is_partial: bool
     item_count: int
 

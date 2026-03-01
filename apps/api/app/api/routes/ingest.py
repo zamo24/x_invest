@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, get_auth_user
@@ -30,6 +30,40 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _find_existing_thread(
+    *,
+    db: Session,
+    user_id,
+    root_tweet_id: str | None,
+    root_url: str | None,
+) -> XThread | None:
+    if root_tweet_id:
+        stmt = (
+            select(XThread)
+            .where(
+                XThread.user_id == user_id,
+                or_(
+                    XThread.root_tweet_id == root_tweet_id,
+                    and_(XThread.root_tweet_id.is_(None), XThread.root_url == root_url),
+                ),
+            )
+            .order_by(XThread.captured_at.desc())
+            .limit(1)
+        )
+        return db.execute(stmt).scalars().first()
+
+    if root_url:
+        stmt = (
+            select(XThread)
+            .where(XThread.user_id == user_id, XThread.root_tweet_id.is_(None), XThread.root_url == root_url)
+            .order_by(XThread.captured_at.desc())
+            .limit(1)
+        )
+        return db.execute(stmt).scalars().first()
+
+    return None
 
 
 @router.post("/ingest/x", response_model=IngestXResponse)
@@ -110,27 +144,54 @@ def ingest_x(
             db.add(item_chunk)
 
     thread_id = None
+    thread_version = None
     if payload.capture_type == "thread":
+        root_url = payload.root_tweet_url or payload.page_url
         captured_at = _ensure_utc(items_for_request[0].captured_at if items_for_request else datetime.now(timezone.utc))
-        thread = XThread(
+        thread = _find_existing_thread(
+            db=db,
             user_id=user.id,
             root_tweet_id=payload.root_tweet_id,
-            root_url=payload.root_tweet_url or payload.page_url,
-            title=build_thread_title(items_for_request, payload.root_tweet_url or payload.page_url),
-            captured_at=captured_at or datetime.now(timezone.utc),
-            is_partial=payload.is_partial,
-            partial_reason=payload.partial_reason,
+            root_url=root_url,
         )
-        db.add(thread)
-        db.flush()
+        if thread is None:
+            thread = XThread(
+                user_id=user.id,
+                root_tweet_id=payload.root_tweet_id,
+                root_url=root_url,
+                title=build_thread_title(items_for_request, root_url),
+                captured_at=captured_at or datetime.now(timezone.utc),
+                capture_version=1,
+                is_partial=payload.is_partial,
+                partial_reason=payload.partial_reason,
+            )
+            db.add(thread)
+            db.flush()
+        else:
+            thread.root_tweet_id = payload.root_tweet_id or thread.root_tweet_id
+            thread.root_url = root_url or thread.root_url
+            thread.title = build_thread_title(items_for_request, root_url)
+            thread.captured_at = captured_at or datetime.now(timezone.utc)
+            thread.capture_version += 1
+            thread.is_partial = payload.is_partial
+            thread.partial_reason = payload.partial_reason
+            db.add(thread)
+            db.flush()
+
+            db.execute(delete(XThreadItem).where(XThreadItem.thread_id == thread.id))
+            db.execute(
+                delete(Chunk).where(
+                    Chunk.user_id == user.id,
+                    Chunk.source_type == "x_thread",
+                    Chunk.source_id == thread.id,
+                )
+            )
+
         thread_id = thread.id
+        thread_version = thread.capture_version
 
         for item in items_for_request:
-            link_exists = db.execute(
-                select(XThreadItem).where(XThreadItem.thread_id == thread.id, XThreadItem.item_id == item.id)
-            ).scalar_one_or_none()
-            if link_exists is None:
-                db.add(XThreadItem(thread_id=thread.id, item_id=item.id))
+            db.add(XThreadItem(thread_id=thread.id, item_id=item.id))
 
         macro_text = build_thread_macro_chunk_text(items_for_request)
         if macro_text:
@@ -149,7 +210,7 @@ def ingest_x(
                     embedding=thread_embedding,
                     metadata_json={
                         "thread_id": str(thread.id),
-                        "tweet_url": payload.root_tweet_url or payload.page_url,
+                        "tweet_url": root_url,
                         "tweet_id": payload.root_tweet_id,
                         "author_handle": items_for_request[0].author_handle if items_for_request else None,
                         "created_at": captured_at.isoformat() if captured_at else None,
@@ -163,6 +224,7 @@ def ingest_x(
 
     return IngestXResponse(
         thread_id=thread_id,
+        thread_version=thread_version,
         item_ids=item_ids,
         stored_count=stored_count,
         is_partial=payload.is_partial,

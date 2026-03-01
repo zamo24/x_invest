@@ -167,3 +167,4 @@ curl -X POST http://localhost:8000/v1/chat \
 - If non-local models are configured, API calls OpenAI (`/v1/embeddings` and `/v1/chat/completions`).
 - `/v1/chat` enforces source-grounded output with citations and marks unsupported claims as `Unknown / Speculation`.
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
+- Thread recaptures dedupe on root tweet identity and increment `capture_version` instead of creating duplicate thread rows.

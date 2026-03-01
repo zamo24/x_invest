@@ -54,6 +54,7 @@ def list_threads(
             XThread.root_url,
             XThread.title,
             XThread.captured_at,
+            XThread.capture_version,
             XThread.is_partial,
             func.count(XThreadItem.item_id).label("item_count"),
         )
@@ -72,6 +73,7 @@ def list_threads(
             root_url=row.root_url,
             title=row.title,
             captured_at=row.captured_at,
+            capture_version=row.capture_version,
             is_partial=row.is_partial,
             item_count=row.item_count,
         )
@@ -92,6 +94,7 @@ def get_thread(
             XThread.root_url,
             XThread.title,
             XThread.captured_at,
+            XThread.capture_version,
             XThread.is_partial,
             func.count(XThreadItem.item_id).label("item_count"),
         )
@@ -117,6 +120,7 @@ def get_thread(
         root_url=thread_row.root_url,
         title=thread_row.title,
         captured_at=thread_row.captured_at,
+        capture_version=thread_row.capture_version,
         is_partial=thread_row.is_partial,
         item_count=thread_row.item_count,
     )
