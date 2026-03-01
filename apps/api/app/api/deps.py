@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clerk_jwt import verify_clerk_jwt
 from app.core.config import get_settings
-from app.core.security import hash_token
+from app.core.security import hash_token, is_well_formed_pat
 from app.db.models import ApiToken, User
 from app.db.session import get_db
 
@@ -57,6 +57,9 @@ def get_current_user(auth_user: AuthUser = Depends(get_auth_user)) -> User:
 
 
 def _resolve_pat_auth(token: str, db: Session) -> AuthUser:
+    if not is_well_formed_pat(token):
+        raise _unauthorized()
+
     token_hash = hash_token(token, get_settings().token_pepper)
 
     stmt: Select[tuple[ApiToken, User]] = (

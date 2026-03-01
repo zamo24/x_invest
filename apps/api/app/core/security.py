@@ -1,8 +1,10 @@
 import hashlib
 import hmac
+import re
 import secrets
 
 TOKEN_PREFIX = "xic_pat_"
+TOKEN_RE = re.compile(rf"^{TOKEN_PREFIX}[A-Za-z0-9_-]{{20,}}$")
 
 
 def create_plaintext_token() -> str:
@@ -18,3 +20,9 @@ def fingerprint_token(token: str) -> str:
     if len(token) < 10:
         return "invalid"
     return f"{token[:10]}...{token[-4:]}"
+
+
+def is_well_formed_pat(token: str) -> bool:
+    if not token:
+        return False
+    return TOKEN_RE.match(token) is not None

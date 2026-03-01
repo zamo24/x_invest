@@ -43,6 +43,14 @@ cp .env.example .env
 - `EMBEDDING_DIM=256` (keeps compatibility with current pgvector schema)
 - Optional: `OPENAI_BASE_URL`, `OPENAI_TIMEOUT_SECONDS`
 
+5. CORS hardening defaults (can override if needed):
+
+- `CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
+- `CORS_ALLOW_ORIGIN_REGEX=^chrome-extension://[a-z]{32}$`
+- `CORS_ALLOW_METHODS=GET,POST,DELETE,OPTIONS`
+- `CORS_ALLOW_HEADERS=Authorization,Content-Type`
+- `CORS_ALLOW_CREDENTIALS=true`
+
 ## Run Locally (Docker)
 
 From repo root:
@@ -158,3 +166,4 @@ curl -X POST http://localhost:8000/v1/chat \
 - If `EMBEDDING_MODEL`/`CHAT_MODEL` are set to `local-*`, API uses local deterministic fallback logic.
 - If non-local models are configured, API calls OpenAI (`/v1/embeddings` and `/v1/chat/completions`).
 - `/v1/chat` enforces source-grounded output with citations and marks unsupported claims as `Unknown / Speculation`.
+- PAT handling validates token format (`xic_pat_...`) before DB lookup.
