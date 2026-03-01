@@ -77,6 +77,26 @@ alembic upgrade head
 docker compose -f infra/docker-compose.yml up --build
 ```
 
+## Automated Tests
+
+API unit + integration tests:
+
+```bash
+docker compose run --rm --build -e EMBEDDING_MODEL=local-hash-v1 -e CHAT_MODEL=local-grounded-v1 api python -m pytest -q
+```
+
+Extension capture harness (jsdom + vitest):
+
+```bash
+pnpm -C apps/extension test
+```
+
+Web e2e test listing (Playwright):
+
+```bash
+pnpm -C apps/web test:e2e:list
+```
+
 ## API Endpoints (MVP)
 
 - `POST /v1/tokens` (Bearer Clerk JWT) create PAT
