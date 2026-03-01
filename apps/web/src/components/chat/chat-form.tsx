@@ -20,6 +20,13 @@ type ChatFormProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
+function truncateLabel(value: string, maxLength = 72) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
 export function ChatForm({
   message,
   scope,
@@ -53,7 +60,7 @@ export function ChatForm({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <label htmlFor="chat-scope" className="text-sm font-medium text-slate-800">
                 Scope
               </label>
@@ -68,15 +75,15 @@ export function ChatForm({
             </div>
 
             {scope === "thread" ? (
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <label htmlFor="chat-thread" className="text-sm font-medium text-slate-800">
                   Thread
                 </label>
                 <Select id="chat-thread" value={threadId} onChange={(event) => onThreadChange(event.target.value)}>
                   <option value="">Select thread...</option>
                   {threads.map((thread) => (
-                    <option key={thread.id} value={thread.id}>
-                      {thread.title}
+                    <option key={thread.id} value={thread.id} title={thread.title}>
+                      {truncateLabel(thread.title)}
                     </option>
                   ))}
                 </Select>

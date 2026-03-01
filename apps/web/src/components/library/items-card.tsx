@@ -1,7 +1,13 @@
+"use client";
+
+import { useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { LibraryItem } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type ItemsCardProps = {
   items: LibraryItem[];
@@ -21,13 +27,27 @@ function formatDate(value: string | null) {
 }
 
 export function ItemsCard({ items }: ItemsCardProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(itemId: string) {
+    setExpandedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }
+
   return (
-    <Card className="h-full">
+    <Card className="flex h-full max-h-[70vh] flex-col">
       <CardHeader>
         <CardTitle>Latest Saved Tweets</CardTitle>
         <CardDescription>Recent tweet captures available for retrieval and chat.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {items.length === 0 ? (
           <p className="text-sm text-slate-600">No tweets saved yet.</p>
         ) : (
@@ -46,7 +66,25 @@ export function ItemsCard({ items }: ItemsCardProps) {
                   </a>
                   <Badge variant="outline">{formatDate(item.created_at ?? item.captured_at)}</Badge>
                 </div>
-                <p className="line-clamp-3 text-sm text-slate-700">{item.text}</p>
+                <p
+                  className={cn(
+                    "text-sm text-slate-700 whitespace-pre-wrap",
+                    !expandedIds.has(item.id) && "line-clamp-3",
+                  )}
+                >
+                  {item.text}
+                </p>
+                {item.text.length > 220 ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto px-0"
+                    onClick={() => toggleExpanded(item.id)}
+                  >
+                    {expandedIds.has(item.id) ? "Show less" : "Show more"}
+                  </Button>
+                ) : null}
               </article>
             </div>
           ))

@@ -32,6 +32,8 @@ cp .env.example .env
 - `CLERK_ISSUER` (e.g. `https://YOUR_INSTANCE.clerk.accounts.dev`)
 - `CLERK_JWKS_URL` (usually `${CLERK_ISSUER}/.well-known/jwks.json`)
 - `CLERK_AUDIENCE` (optional; set only if your Clerk JWT includes `aud`)
+- `CLERK_JWT_LEEWAY_SECONDS` (optional; default `30`, helps avoid intermittent token clock-skew issues)
+- `CLERK_JWT_TEMPLATE` (optional; set only if you configured a custom Clerk JWT template for backend auth)
 
 3. Set `TOKEN_PEPPER` to a long random string.
 
@@ -64,6 +66,17 @@ Services:
 - Web: `http://localhost:3000`
 - API: `http://localhost:8000`
 - Postgres: `localhost:55432`
+
+`web` now runs in Next.js dev mode with bind-mounted source for hot reload. UI edits in `apps/web` should appear without restarting containers.
+If you change dependencies (`package.json` / lockfile), restart the `web` service once.
+
+If `web` fails to boot after switching compose versions, reset the web dependency volume once:
+
+```bash
+docker compose down
+docker volume rm x_investor_copilot_web_node_modules
+docker compose up -d --build web
+```
 
 `api` container runs migrations at startup:
 
@@ -178,6 +191,7 @@ curl -X POST http://localhost:8000/v1/chat \
 
 - Web routes under `/app/*` are protected by Clerk middleware.
 - Next.js route handlers forward `Authorization: Bearer <Clerk session JWT>` to FastAPI.
+- If a proxied request gets `401`, the web layer refreshes the Clerk token once and retries.
 - FastAPI verifies Clerk JWTs using Clerk JWKS (`CLERK_JWKS_URL`) and issuer (`CLERK_ISSUER`).
 
 ## Dev Notes

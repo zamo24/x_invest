@@ -34,6 +34,7 @@ def verify_clerk_jwt(token: str, settings: Settings) -> dict[str, Any]:
             "algorithms": ["RS256"],
             "issuer": settings.clerk_issuer,
             "options": {"verify_aud": bool(settings.clerk_audience)},
+            "leeway": settings.clerk_jwt_leeway_seconds,
         }
         if settings.clerk_audience:
             decode_kwargs["audience"] = settings.clerk_audience

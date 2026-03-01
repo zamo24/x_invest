@@ -11,12 +11,12 @@ type ThreadsCardProps = {
 
 export function ThreadsCard({ threads }: ThreadsCardProps) {
   return (
-    <Card className="h-full">
+    <Card className="flex h-full max-h-[70vh] flex-col">
       <CardHeader>
         <CardTitle>Saved Threads</CardTitle>
         <CardDescription>Thread captures from X with version history.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {threads.length === 0 ? (
           <p className="text-sm text-slate-600">No threads yet. Use the extension to save a thread from X.</p>
         ) : (

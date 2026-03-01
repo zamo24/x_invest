@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     clerk_issuer: str | None = Field(default=None, alias="CLERK_ISSUER")
     clerk_jwks_url: str | None = Field(default=None, alias="CLERK_JWKS_URL")
     clerk_audience: str | None = Field(default=None, alias="CLERK_AUDIENCE")
+    clerk_jwt_leeway_seconds: int = Field(default=30, alias="CLERK_JWT_LEEWAY_SECONDS")
 
     embedding_model: str = Field(default="local-hash-v1", alias="EMBEDDING_MODEL")
     chat_model: str = Field(default="local-grounded-v1", alias="CHAT_MODEL")

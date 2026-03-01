@@ -1,11 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function Home() {
+export default async function Home() {
   const clerkEnabled = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  if (clerkEnabled) {
+    const { userId } = await auth();
+    if (userId) {
+      redirect("/app/library");
+    }
+  }
 
   return (
     <main className="grid min-h-screen place-items-center px-4 py-10 sm:px-6">
