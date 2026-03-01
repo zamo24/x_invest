@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: copilot
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -23,7 +23,13 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/copilot
       TOKEN_PEPPER: ${TOKEN_PEPPER:-dev-token-pepper-change-me}
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
+      CLERK_AUDIENCE: ${CLERK_AUDIENCE:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-30}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-local-hash-v1}
       CHAT_MODEL: ${CHAT_MODEL:-local-grounded-v1}
       EMBEDDING_DIM: ${EMBEDDING_DIM:-256}

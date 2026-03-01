@@ -6,6 +6,7 @@ from app.db.models import User
 from app.db.session import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.embeddings import embed_text
+from app.services.openai_client import OpenAIServiceError
 from app.services.rag import build_answer, retrieve_chunks
 
 router = APIRouter()
@@ -31,7 +32,10 @@ def chat(
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid thread_id") from exc
 
-    query_vec = embed_text(payload.message)
+    try:
+        query_vec = embed_text(payload.message)
+    except OpenAIServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     retrieved = retrieve_chunks(
         db,
         user_id=user.id,
@@ -42,5 +46,9 @@ def chat(
         filters=payload.filters,
     )
 
-    bundle = build_answer(payload.message, retrieved)
+    try:
+        bundle = build_answer(payload.message, retrieved)
+    except OpenAIServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
     return ChatResponse(answer_text=bundle.answer_text, cited_sources=bundle.cited_sources)

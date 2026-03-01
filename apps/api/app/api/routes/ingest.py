@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.services.ingest import (
     normalize_tweet_id,
     stable_item_hash,
 )
+from app.services.openai_client import OpenAIServiceError
 
 router = APIRouter()
 
@@ -86,13 +87,18 @@ def ingest_x(
 
         if existing_chunk is None:
             item_text = build_item_chunk_text(item)
+            try:
+                item_embedding = embed_text(item_text)
+            except OpenAIServiceError as exc:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
             item_chunk = Chunk(
                 user_id=user.id,
                 source_type="x_item",
                 source_id=item.id,
                 chunk_text=item_text,
                 chunk_order=0,
-                embedding=embed_text(item_text),
+                embedding=item_embedding,
                 metadata_json={
                     "tweet_url": item.url,
                     "tweet_id": item.tweet_id,
@@ -128,6 +134,11 @@ def ingest_x(
 
         macro_text = build_thread_macro_chunk_text(items_for_request)
         if macro_text:
+            try:
+                thread_embedding = embed_text(macro_text)
+            except OpenAIServiceError as exc:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
             db.add(
                 Chunk(
                     user_id=user.id,
@@ -135,7 +146,7 @@ def ingest_x(
                     source_id=thread.id,
                     chunk_text=macro_text,
                     chunk_order=0,
-                    embedding=embed_text(macro_text),
+                    embedding=thread_embedding,
                     metadata_json={
                         "thread_id": str(thread.id),
                         "tweet_url": payload.root_tweet_url or payload.page_url,

@@ -8,8 +8,11 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.models import Chunk, XThreadItem
 from app.schemas.chat import ChatFilters, CitedSource
+from app.services.openai_client import OpenAIServiceError, call_openai_json
+from app.services.prompts import GROUNDED_ANALYSIS_PROMPT
 
 BULL_HINTS = ("bull", "upside", "tailwind", "growth", "beat", "strong", "improve", "long")
 BEAR_HINTS = ("bear", "downside", "risk", "bottleneck", "weak", "miss", "headwind", "short")
@@ -123,16 +126,7 @@ def _shorten(text: str, max_len: int = 240) -> str:
     return stripped[: max_len - 3].rstrip() + "..."
 
 
-def _classify_line(snippet: str) -> str:
-    lowered = snippet.lower()
-    if any(k in lowered for k in FORECAST_HINTS):
-        return "forecast"
-    if any(k in lowered for k in OPINION_HINTS):
-        return "opinion"
-    return "fact"
-
-
-def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
+def _dedupe_sources(chunks: list[RetrievedChunk]) -> list[CitedSource]:
     evidence = []
     for rc in chunks:
         metadata = rc.chunk.metadata_json or {}
@@ -159,16 +153,33 @@ def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
         seen_urls.add(source.tweet_url)
         deduped_sources.append(source)
 
-    if not deduped_sources:
-        answer = (
-            "Facts: Unknown / Speculation.\n"
-            "Opinions: Unknown / Speculation.\n"
-            "Forecasts: Unknown / Speculation.\n"
-            "Bull Case: Unknown / Speculation.\n"
-            "Bear Case: Unknown / Speculation.\n"
-            "Uncertainties: No cited tweets matched this request."
-        )
-        return AnswerBundle(answer_text=answer, cited_sources=[])
+    return deduped_sources[:8]
+
+
+def _unknown_bundle(reason: str) -> AnswerBundle:
+    answer = (
+        "Facts: Unknown / Speculation.\n"
+        "Opinions: Unknown / Speculation.\n"
+        "Forecasts: Unknown / Speculation.\n"
+        "Bull Case: Unknown / Speculation.\n"
+        "Bear Case: Unknown / Speculation.\n"
+        f"Uncertainties: {reason}"
+    )
+    return AnswerBundle(answer_text=answer, cited_sources=[])
+
+
+def _classify_line(snippet: str) -> str:
+    lowered = snippet.lower()
+    if any(k in lowered for k in FORECAST_HINTS):
+        return "forecast"
+    if any(k in lowered for k in OPINION_HINTS):
+        return "opinion"
+    return "fact"
+
+
+def _build_rule_based_answer(question: str, sources: list[CitedSource]) -> str:
+    if not sources:
+        return _unknown_bundle("No cited tweets matched this request.").answer_text
 
     facts: list[str] = []
     opinions: list[str] = []
@@ -176,7 +187,7 @@ def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
     bull_case: list[str] = []
     bear_case: list[str] = []
 
-    for source in deduped_sources[:8]:
+    for source in sources:
         line = f"{source.snippet} (source: {source.tweet_url})"
         classification = _classify_line(source.snippet)
         if classification == "forecast":
@@ -208,7 +219,7 @@ def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
         f"Query asked: {question}",
     ]
 
-    answer = "\n".join(
+    return "\n".join(
         [
             "Facts:",
             *[f"- {line}" for line in facts[:4]],
@@ -225,4 +236,83 @@ def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
         ]
     )
 
-    return AnswerBundle(answer_text=answer, cited_sources=deduped_sources[:8])
+
+def _uses_local_chat_model(model: str) -> bool:
+    return model.strip().lower().startswith("local-")
+
+
+def _build_chat_user_prompt(question: str, sources: list[CitedSource]) -> str:
+    source_lines: list[str] = []
+    for idx, source in enumerate(sources, start=1):
+        source_lines.append(
+            "\n".join(
+                [
+                    f"[Source {idx}]",
+                    f"tweet_url: {source.tweet_url}",
+                    f"tweet_id: {source.tweet_id or 'unknown'}",
+                    f"author_handle: {source.author_handle or 'unknown'}",
+                    f"created_at: {source.created_at.isoformat() if source.created_at else 'unknown'}",
+                    f"snippet: {source.snippet}",
+                ]
+            )
+        )
+
+    return "\n\n".join(
+        [
+            f"Question:\n{question}",
+            "Retrieved sources:",
+            "\n\n".join(source_lines),
+            (
+                "Return sections exactly in this order:\n"
+                "Facts\nOpinions\nForecasts\nBull Case\nBear Case\nUncertainties\n\n"
+                "For every material claim, include at least one explicit tweet URL from the sources."
+            ),
+        ]
+    )
+
+
+def _extract_chat_completion_text(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise OpenAIServiceError("OpenAI chat response missing choices.")
+
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        raise OpenAIServiceError("OpenAI chat response has invalid choice payload.")
+
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        raise OpenAIServiceError("OpenAI chat response missing message payload.")
+
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+
+    raise OpenAIServiceError("OpenAI chat response has empty message content.")
+
+
+def _build_openai_answer(question: str, sources: list[CitedSource]) -> str:
+    settings = get_settings()
+    payload = {
+        "model": settings.chat_model,
+        "temperature": 0.1,
+        "messages": [
+            {"role": "system", "content": GROUNDED_ANALYSIS_PROMPT},
+            {"role": "user", "content": _build_chat_user_prompt(question, sources)},
+        ],
+    }
+    response = call_openai_json("chat/completions", payload)
+    return _extract_chat_completion_text(response)
+
+
+def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
+    deduped_sources = _dedupe_sources(chunks)
+    if not deduped_sources:
+        return _unknown_bundle("No cited tweets matched this request.")
+
+    settings = get_settings()
+    if _uses_local_chat_model(settings.chat_model):
+        return AnswerBundle(answer_text=_build_rule_based_answer(question, deduped_sources), cited_sources=deduped_sources)
+
+    answer = _build_openai_answer(question, deduped_sources)
+    return AnswerBundle(answer_text=answer, cited_sources=deduped_sources)

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
+from app.core.clerk_jwt import verify_clerk_jwt
 from app.core.config import get_settings
 from app.core.security import hash_token
 from app.db.models import ApiToken, User
@@ -33,13 +35,21 @@ def _unauthorized(detail: str = "Invalid or missing token") -> HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
+def _extract_bearer_token(creds: HTTPAuthorizationCredentials | None) -> str:
+    if creds is None or creds.scheme.lower() != "bearer" or not creds.credentials.strip():
+        raise _unauthorized("Missing Bearer authentication token.")
+    return creds.credentials.strip()
+
+
+def _looks_like_jwt(token: str) -> bool:
+    return token.count(".") == 2
+
+
 def get_auth_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> AuthUser:
-    if creds is None or creds.scheme.lower() != "bearer":
-        raise _unauthorized()
-    return _resolve_pat_auth(creds.credentials.strip(), db)
+    return _resolve_pat_auth(_extract_bearer_token(creds), db)
 
 
 def get_current_user(auth_user: AuthUser = Depends(get_auth_user)) -> User:
@@ -67,16 +77,12 @@ def _resolve_pat_auth(token: str, db: Session) -> AuthUser:
     return AuthUser(user=user, token=token_obj)
 
 
-def get_clerk_identity(
-    x_clerk_user_id: str | None = Header(default=None),
-    x_clerk_email: str | None = Header(default=None),
-) -> ClerkIdentity:
-    if not x_clerk_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing x-clerk-user-id header for web-authenticated endpoint.",
-        )
-    return ClerkIdentity(clerk_user_id=x_clerk_user_id, email=x_clerk_email)
+def _resolve_clerk_auth(token: str, db: Session) -> AuthUser:
+    claims: dict[str, Any] = verify_clerk_jwt(token=token, settings=get_settings())
+    email_claim = claims.get("email")
+    email = email_claim if isinstance(email_claim, str) else None
+    identity = ClerkIdentity(clerk_user_id=str(claims["sub"]), email=email)
+    return AuthUser(user=get_or_create_user_for_clerk(identity=identity, db=db))
 
 
 def get_or_create_user_for_clerk(identity: ClerkIdentity, db: Session) -> User:
@@ -97,26 +103,31 @@ def get_or_create_user_for_clerk(identity: ClerkIdentity, db: Session) -> User:
 
 
 def get_current_clerk_user(
-    identity: ClerkIdentity = Depends(get_clerk_identity),
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    return get_or_create_user_for_clerk(identity=identity, db=db)
+    token = _extract_bearer_token(creds)
+    return _resolve_clerk_auth(token=token, db=db).user
 
 
 def get_any_authenticated_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    x_clerk_user_id: str | None = Header(default=None),
-    x_clerk_email: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> User:
-    if creds and creds.scheme.lower() == "bearer":
-        return _resolve_pat_auth(creds.credentials.strip(), db).user
+    token = _extract_bearer_token(creds)
 
-    if x_clerk_user_id:
-        identity = ClerkIdentity(clerk_user_id=x_clerk_user_id, email=x_clerk_email)
-        return get_or_create_user_for_clerk(identity=identity, db=db)
+    try:
+        return _resolve_pat_auth(token, db).user
+    except HTTPException:
+        if not _looks_like_jwt(token):
+            raise _unauthorized("Invalid PAT token.")
 
-    raise _unauthorized("Missing authentication. Provide Bearer PAT or x-clerk-user-id.")
+    try:
+        return _resolve_clerk_auth(token=token, db=db).user
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            raise
+        raise _unauthorized("Invalid token. Provide a valid PAT or Clerk session token.") from exc
 
 
 def ensure_thread_access(thread_id: UUID, user_id: UUID, db: Session) -> None:

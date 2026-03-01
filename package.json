@@ -1,13 +1,9 @@
 {
-  "name": "x_investor_copilot",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "x-investor-copilot",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.26.2"
+    "dev:web": "pnpm --filter web dev",
+    "lint": "pnpm -r lint"
+  }
 }

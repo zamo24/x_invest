@@ -1,27 +1,33 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8000";
 
 async function getForwardHeaders() {
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
   if (!userId) {
-    throw new Error("Not authenticated");
+    return null;
   }
 
-  const user = await currentUser();
+  const sessionToken = await getToken();
+  if (!sessionToken) {
+    return null;
+  }
+
   const headers = new Headers();
-  headers.set("x-clerk-user-id", userId);
-
-  const email = user?.primaryEmailAddress?.emailAddress;
-  if (email) {
-    headers.set("x-clerk-email", email);
-  }
+  headers.set("authorization", `Bearer ${sessionToken}`);
 
   return headers;
 }
 
 export async function apiFetch(path: string, init?: RequestInit) {
   const clerkHeaders = await getForwardHeaders();
+  if (!clerkHeaders) {
+    return new Response(JSON.stringify({ detail: "Not authenticated" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const headers = new Headers(init?.headers);
 
   clerkHeaders.forEach((value, key) => headers.set(key, value));

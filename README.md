@@ -29,8 +29,19 @@ cp .env.example .env
 
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
+- `CLERK_ISSUER` (e.g. `https://YOUR_INSTANCE.clerk.accounts.dev`)
+- `CLERK_JWKS_URL` (usually `${CLERK_ISSUER}/.well-known/jwks.json`)
+- `CLERK_AUDIENCE` (optional; set only if your Clerk JWT includes `aud`)
 
 3. Set `TOKEN_PEPPER` to a long random string.
+
+4. For OpenAI-backed embeddings + chat (step 2), set:
+
+- `OPENAI_API_KEY` (or `LLM_API_KEY`)
+- `EMBEDDING_MODEL=text-embedding-3-small`
+- `CHAT_MODEL=gpt-4o-mini`
+- `EMBEDDING_DIM=256` (keeps compatibility with current pgvector schema)
+- Optional: `OPENAI_BASE_URL`, `OPENAI_TIMEOUT_SECONDS`
 
 ## Run Locally (Docker)
 
@@ -44,7 +55,7 @@ Services:
 
 - Web: `http://localhost:3000`
 - API: `http://localhost:8000`
-- Postgres: `localhost:5432`
+- Postgres: `localhost:55432`
 
 `api` container runs migrations at startup:
 
@@ -60,24 +71,27 @@ docker compose -f infra/docker-compose.yml up --build
 
 ## API Endpoints (MVP)
 
-- `POST /v1/tokens` (Clerk-header auth) create PAT
+- `POST /v1/tokens` (Bearer Clerk JWT) create PAT
 - `GET /v1/tokens` list PATs
 - `DELETE /v1/tokens/{id}` revoke PAT
 - `POST /v1/ingest/x` (Bearer PAT) ingest tweet/thread capture
-- `POST /v1/chat` (Bearer PAT or Clerk headers) source-grounded chat
-- `GET /v1/library/items` (Bearer PAT or Clerk headers)
-- `GET /v1/library/threads` (Bearer PAT or Clerk headers)
-- `GET /v1/library/threads/{id}` (Bearer PAT or Clerk headers)
+- `POST /v1/chat` (Bearer PAT or Bearer Clerk JWT) source-grounded chat
+- `GET /v1/library/items` (Bearer PAT or Bearer Clerk JWT)
+- `GET /v1/library/threads` (Bearer PAT or Bearer Clerk JWT)
+- `GET /v1/library/threads/{id}` (Bearer PAT or Bearer Clerk JWT)
 
 ## Curl Examples
 
 ### 1) Create token (web/Clerk context)
 
+Best path: create/revoke tokens in the dashboard at `http://localhost:3000/app/settings/tokens`.
+
+Direct API example (requires a valid Clerk session JWT):
+
 ```bash
 curl -X POST http://localhost:8000/v1/tokens \
   -H "Content-Type: application/json" \
-  -H "x-clerk-user-id: user_123" \
-  -H "x-clerk-email: user@example.com" \
+  -H "Authorization: Bearer CLERK_SESSION_JWT" \
   -d '{"name":"Extension PAT"}'
 ```
 
@@ -135,11 +149,12 @@ curl -X POST http://localhost:8000/v1/chat \
 ## Clerk Notes
 
 - Web routes under `/app/*` are protected by Clerk middleware.
-- FastAPI token endpoints use `x-clerk-user-id` headers forwarded by Next route handlers.
-- MVP does not validate Clerk JWT inside FastAPI.
+- Next.js route handlers forward `Authorization: Bearer <Clerk session JWT>` to FastAPI.
+- FastAPI verifies Clerk JWTs using Clerk JWKS (`CLERK_JWKS_URL`) and issuer (`CLERK_ISSUER`).
 
 ## Dev Notes
 
 - DB extension init: `infra/db/init.sql` includes `CREATE EXTENSION IF NOT EXISTS vector;`
-- Embeddings are deterministic local hash embeddings for MVP (no external model required).
+- If `EMBEDDING_MODEL`/`CHAT_MODEL` are set to `local-*`, API uses local deterministic fallback logic.
+- If non-local models are configured, API calls OpenAI (`/v1/embeddings` and `/v1/chat/completions`).
 - `/v1/chat` enforces source-grounded output with citations and marks unsupported claims as `Unknown / Speculation`.
