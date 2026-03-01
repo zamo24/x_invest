@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -12,6 +13,7 @@ class DateRangeFilter(BaseModel):
 class ChatFilters(BaseModel):
     author_handle: str | None = None
     date_range: DateRangeFilter | None = None
+    folder_id: UUID | None = None
 
 
 class ChatRequest(BaseModel):

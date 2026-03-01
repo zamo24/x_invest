@@ -33,6 +33,7 @@ class IngestXRequest(BaseModel):
     root_tweet_url: str | None = None
     tweets: list[IngestTweetPayload] = Field(default_factory=list)
     captured_count: int
+    folder_id: UUID | None = None
     is_partial: bool = False
     partial_reason: str | None = None
 
@@ -54,6 +55,9 @@ class LibraryThreadListItem(BaseModel):
     capture_version: int
     is_partial: bool
     item_count: int
+    author_handles: list[str] = Field(default_factory=list)
+    folder_id: UUID | None = None
+    folder_name: str | None = None
 
 
 class LibraryItem(BaseModel):
@@ -67,6 +71,8 @@ class LibraryItem(BaseModel):
     created_at: datetime | None
     captured_at: datetime
     text: str
+    folder_id: UUID | None
+    folder_name: str | None = None
 
 
 class ThreadDetailResponse(BaseModel):

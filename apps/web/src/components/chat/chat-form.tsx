@@ -6,17 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { LibraryThreadListItem } from "@/lib/types";
+import type { Folder, LibraryThreadListItem } from "@/lib/types";
 
 type ChatFormProps = {
   message: string;
   scope: "all" | "thread";
   threadId: string;
+  folderId: string;
   threads: LibraryThreadListItem[];
+  folders: Folder[];
   loading: boolean;
   onMessageChange: (value: string) => void;
   onScopeChange: (value: "all" | "thread") => void;
   onThreadChange: (value: string) => void;
+  onFolderChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
@@ -24,18 +27,21 @@ function truncateLabel(value: string, maxLength = 72) {
   if (value.length <= maxLength) {
     return value;
   }
-  return `${value.slice(0, maxLength - 1)}…`;
+  return `${value.slice(0, maxLength - 3)}...`;
 }
 
 export function ChatForm({
   message,
   scope,
   threadId,
+  folderId,
   threads,
+  folders,
   loading,
   onMessageChange,
   onScopeChange,
   onThreadChange,
+  onFolderChange,
   onSubmit,
 }: ChatFormProps) {
   return (
@@ -59,7 +65,7 @@ export function ChatForm({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="min-w-0 space-y-2">
               <label htmlFor="chat-scope" className="text-sm font-medium text-slate-800">
                 Scope
@@ -71,6 +77,20 @@ export function ChatForm({
               >
                 <option value="all">All saved items</option>
                 <option value="thread">Single thread</option>
+              </Select>
+            </div>
+
+            <div className="min-w-0 space-y-2">
+              <label htmlFor="chat-folder" className="text-sm font-medium text-slate-800">
+                Folder (optional)
+              </label>
+              <Select id="chat-folder" value={folderId} onChange={(event) => onFolderChange(event.target.value)}>
+                <option value="">All folders</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </option>
+                ))}
               </Select>
             </div>
 

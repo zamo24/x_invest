@@ -23,6 +23,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     api_tokens: Mapped[list[ApiToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    folders: Mapped[list[XFolder]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class ApiToken(Base):
@@ -46,6 +47,9 @@ class XItem(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("x_folders.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     tweet_id: Mapped[str] = mapped_column(String(64), nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     author_handle: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -63,6 +67,9 @@ class XThread(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("x_folders.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     root_tweet_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     root_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     title: Mapped[str] = mapped_column(String(280), nullable=False)
@@ -82,6 +89,18 @@ class XThreadItem(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("x_items.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+class XFolder(Base):
+    __tablename__ = "x_folders"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_x_folders_user_name"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="folders")
 
 
 class Chunk(Base):

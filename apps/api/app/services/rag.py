@@ -9,7 +9,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.models import Chunk, XThreadItem
+from app.db.models import Chunk, XItem, XThread, XThreadItem
 from app.schemas.chat import ChatFilters, CitedSource
 from app.services.openai_client import OpenAIServiceError, call_openai_json
 from app.services.prompts import GROUNDED_ANALYSIS_PROMPT
@@ -91,6 +91,17 @@ def retrieve_chunks(
     filters: ChatFilters | None,
 ) -> list[RetrievedChunk]:
     stmt = select(Chunk, Chunk.embedding.cosine_distance(query_vector).label("distance")).where(Chunk.user_id == user_id)
+
+    folder_id = filters.folder_id if filters else None
+    if folder_id is not None:
+        folder_item_ids = select(XItem.id).where(XItem.user_id == user_id, XItem.folder_id == folder_id)
+        folder_thread_ids = select(XThread.id).where(XThread.user_id == user_id, XThread.folder_id == folder_id)
+        stmt = stmt.where(
+            or_(
+                and_(Chunk.source_type == "x_item", Chunk.source_id.in_(folder_item_ids)),
+                and_(Chunk.source_type == "x_thread", Chunk.source_id.in_(folder_thread_ids)),
+            )
+        )
 
     if scope == "thread":
         if thread_id is None:

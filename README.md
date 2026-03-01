@@ -120,6 +120,11 @@ pnpm -C apps/web test:e2e:list
 - `GET /v1/library/items` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/threads` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/threads/{id}` (Bearer PAT or Bearer Clerk JWT)
+- `GET /v1/library/folders` (Bearer PAT or Bearer Clerk JWT)
+- `POST /v1/library/folders` create a topic folder
+- `DELETE /v1/library/folders/{id}` delete folder (saved content remains, becomes unassigned)
+- `PATCH /v1/library/items/{id}/folder` assign/unassign tweet folder
+- `PATCH /v1/library/threads/{id}/folder` assign/unassign thread folder
 
 ## Curl Examples
 

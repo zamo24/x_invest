@@ -7,7 +7,7 @@ from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, get_auth_user
-from app.db.models import Chunk, XItem, XThread, XThreadItem
+from app.db.models import Chunk, XFolder, XItem, XThread, XThreadItem
 from app.db.session import get_db
 from app.schemas.ingest import IngestXRequest, IngestXResponse
 from app.services.embeddings import embed_text
@@ -73,6 +73,12 @@ def ingest_x(
     db: Session = Depends(get_db),
 ) -> IngestXResponse:
     user = auth_user.user
+    folder_id = payload.folder_id
+
+    if folder_id is not None:
+        folder = db.execute(select(XFolder).where(XFolder.id == folder_id, XFolder.user_id == user.id)).scalar_one_or_none()
+        if folder is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
     seen_tweet_ids: set[str] = set()
     item_ids = []
@@ -92,6 +98,7 @@ def ingest_x(
         if item is None:
             item = XItem(
                 user_id=user.id,
+                folder_id=folder_id,
                 tweet_id=tweet_id,
                 url=tw.url,
                 author_handle=tw.author_handle,
@@ -106,6 +113,9 @@ def ingest_x(
             db.add(item)
             db.flush()
             stored_count += 1
+        elif folder_id is not None and item.folder_id != folder_id:
+            item.folder_id = folder_id
+            db.add(item)
 
         item_ids.append(item.id)
         items_for_request.append(item)
@@ -157,6 +167,7 @@ def ingest_x(
         if thread is None:
             thread = XThread(
                 user_id=user.id,
+                folder_id=folder_id,
                 root_tweet_id=payload.root_tweet_id,
                 root_url=root_url,
                 title=build_thread_title(items_for_request, root_url),
@@ -173,6 +184,8 @@ def ingest_x(
             thread.title = build_thread_title(items_for_request, root_url)
             thread.captured_at = captured_at or datetime.now(timezone.utc)
             thread.capture_version += 1
+            if folder_id is not None:
+                thread.folder_id = folder_id
             thread.is_partial = payload.is_partial
             thread.partial_reason = payload.partial_reason
             db.add(thread)

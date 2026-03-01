@@ -5,12 +5,16 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import type { LibraryItem } from "@/lib/types";
+import type { Folder, LibraryItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type ItemsCardProps = {
   items: LibraryItem[];
+  folders: Folder[];
+  assigningItemId: string | null;
+  onAssignFolder: (itemId: string, folderId: string | null) => void;
 };
 
 function formatDate(value: string | null) {
@@ -26,7 +30,7 @@ function formatDate(value: string | null) {
   return asDate.toLocaleString();
 }
 
-export function ItemsCard({ items }: ItemsCardProps) {
+export function ItemsCard({ items, folders, assigningItemId, onAssignFolder }: ItemsCardProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   function toggleExpanded(itemId: string) {
@@ -65,10 +69,25 @@ export function ItemsCard({ items }: ItemsCardProps) {
                     @{item.author_handle}
                   </a>
                   <Badge variant="outline">{formatDate(item.created_at ?? item.captured_at)}</Badge>
+                  {item.folder_name ? <Badge variant="secondary">{item.folder_name}</Badge> : null}
+                </div>
+                <div className="max-w-xs">
+                  <Select
+                    value={item.folder_id ?? ""}
+                    disabled={assigningItemId === item.id}
+                    onChange={(event) => onAssignFolder(item.id, event.target.value || null)}
+                  >
+                    <option value="">No folder</option>
+                    {folders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
                 <p
                   className={cn(
-                    "text-sm text-slate-700 whitespace-pre-wrap",
+                    "text-sm whitespace-pre-wrap text-slate-700",
                     !expandedIds.has(item.id) && "line-clamp-3",
                   )}
                 >

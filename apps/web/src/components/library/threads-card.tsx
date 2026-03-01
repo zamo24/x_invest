@@ -1,15 +1,21 @@
+"use client";
+
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import type { LibraryThreadListItem } from "@/lib/types";
+import type { Folder, LibraryThreadListItem } from "@/lib/types";
 
 type ThreadsCardProps = {
   threads: LibraryThreadListItem[];
+  folders: Folder[];
+  assigningThreadId: string | null;
+  onAssignFolder: (threadId: string, folderId: string | null) => void;
 };
 
-export function ThreadsCard({ threads }: ThreadsCardProps) {
+export function ThreadsCard({ threads, folders, assigningThreadId, onAssignFolder }: ThreadsCardProps) {
   return (
     <Card className="flex h-full max-h-[70vh] flex-col">
       <CardHeader>
@@ -27,9 +33,24 @@ export function ThreadsCard({ threads }: ThreadsCardProps) {
                 <Link href={`/app/threads/${thread.id}`} className="font-medium text-slate-900 hover:text-emerald-700">
                   {thread.title}
                 </Link>
+                <div className="max-w-xs">
+                  <Select
+                    value={thread.folder_id ?? ""}
+                    disabled={assigningThreadId === thread.id}
+                    onChange={(event) => onAssignFolder(thread.id, event.target.value || null)}
+                  >
+                    <option value="">No folder</option>
+                    {folders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">v{thread.capture_version}</Badge>
                   <Badge variant="secondary">{thread.item_count} items</Badge>
+                  {thread.folder_name ? <Badge variant="secondary">{thread.folder_name}</Badge> : null}
                   {thread.is_partial && <Badge variant="destructive">Partial capture</Badge>}
                 </div>
               </div>

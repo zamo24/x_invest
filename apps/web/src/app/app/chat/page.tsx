@@ -6,7 +6,7 @@ import { ChatForm } from "@/components/chat/chat-form";
 import { ChatResult } from "@/components/chat/chat-result";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { ChatSource, LibraryThreadListItem } from "@/lib/types";
+import type { ChatSource, Folder, LibraryThreadListItem } from "@/lib/types";
 
 type ChatResultPayload = {
   answer_text: string;
@@ -17,22 +17,29 @@ export default function ChatPage() {
   const [message, setMessage] = useState("Summarize my latest semiconductor takes.");
   const [scope, setScope] = useState<"all" | "thread">("all");
   const [threadId, setThreadId] = useState("");
+  const [folderId, setFolderId] = useState("");
   const [threads, setThreads] = useState<LibraryThreadListItem[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [result, setResult] = useState<ChatResultPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadThreads() {
-      const res = await fetch("/api/library/threads", { cache: "no-store" });
-      if (!res.ok) {
-        return;
-      }
+    async function loadData() {
+      const [threadsRes, foldersRes] = await Promise.all([
+        fetch("/api/library/threads", { cache: "no-store" }),
+        fetch("/api/library/folders", { cache: "no-store" }),
+      ]);
 
-      setThreads((await res.json()) as LibraryThreadListItem[]);
+      if (threadsRes.ok) {
+        setThreads((await threadsRes.json()) as LibraryThreadListItem[]);
+      }
+      if (foldersRes.ok) {
+        setFolders((await foldersRes.json()) as Folder[]);
+      }
     }
 
-    void loadThreads();
+    void loadData();
   }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -48,6 +55,7 @@ export default function ChatPage() {
           message,
           scope,
           thread_id: scope === "thread" ? threadId : undefined,
+          filters: folderId ? { folder_id: folderId } : undefined,
           top_k: 8,
         }),
       });
@@ -83,11 +91,14 @@ export default function ChatPage() {
         message={message}
         scope={scope}
         threadId={threadId}
+        folderId={folderId}
         threads={threads}
+        folders={folders}
         loading={loading}
         onMessageChange={setMessage}
         onScopeChange={setScope}
         onThreadChange={setThreadId}
+        onFolderChange={setFolderId}
         onSubmit={onSubmit}
       />
 

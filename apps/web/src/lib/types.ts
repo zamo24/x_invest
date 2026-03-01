@@ -16,6 +16,9 @@ export type LibraryThreadListItem = {
   capture_version: number;
   is_partial: boolean;
   item_count: number;
+  author_handles: string[];
+  folder_id: string | null;
+  folder_name: string | null;
 };
 
 export type LibraryItem = {
@@ -27,6 +30,16 @@ export type LibraryItem = {
   created_at: string | null;
   captured_at: string;
   text: string;
+  folder_id: string | null;
+  folder_name: string | null;
+};
+
+export type Folder = {
+  id: string;
+  name: string;
+  created_at: string;
+  item_count: number;
+  thread_count: number;
 };
 
 export type ChatSource = {
