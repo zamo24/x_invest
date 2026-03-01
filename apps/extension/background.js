@@ -8,20 +8,26 @@ async function readSettings() {
   };
 }
 
-async function apiRequest(path, payload) {
+async function apiRequest(path, options = {}) {
+  const { method = "POST", payload = null } = options;
   const { pat, apiBase } = await readSettings();
 
   if (!pat) {
     throw new Error("No PAT configured. Open extension options and add your token.");
   }
 
+  const headers = {
+    Authorization: `Bearer ${pat}`,
+  };
+
+  if (payload !== null) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${apiBase}${path}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${pat}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+    method,
+    headers,
+    body: payload !== null ? JSON.stringify(payload) : undefined,
   });
 
   const data = await response.json().catch(() => ({}));
@@ -39,13 +45,19 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     if (message?.type === "INGEST_X") {
-      const data = await apiRequest("/v1/ingest/x", message.payload);
+      const data = await apiRequest("/v1/ingest/x", { method: "POST", payload: message.payload });
       sendResponse({ ok: true, data });
       return;
     }
 
     if (message?.type === "CHAT") {
-      const data = await apiRequest("/v1/chat", message.payload);
+      const data = await apiRequest("/v1/chat", { method: "POST", payload: message.payload });
+      sendResponse({ ok: true, data });
+      return;
+    }
+
+    if (message?.type === "LIST_FOLDERS") {
+      const data = await apiRequest("/v1/library/folders", { method: "GET" });
       sendResponse({ ok: true, data });
       return;
     }

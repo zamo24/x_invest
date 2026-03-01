@@ -1,6 +1,7 @@
 (() => {
   const TOOLBAR_ID = "xic-toolbar-root";
   const core = globalThis.XicCaptureCore;
+  let selectedFolderId = "";
   if (!core) {
     console.error("XicCaptureCore is missing. Did capture-core.js load?");
     return;
@@ -25,6 +26,50 @@
     toast.style.boxShadow = "0 10px 20px rgba(0,0,0,0.25)";
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2400);
+  }
+
+  async function sendRuntimeMessage(type, payload) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type, payload }, resolve);
+    });
+  }
+
+  function populateFolderSelect(selectEl, folders) {
+    const previousSelection = selectedFolderId;
+    selectEl.innerHTML = "";
+
+    const noFolderOption = document.createElement("option");
+    noFolderOption.value = "";
+    noFolderOption.textContent = "No folder";
+    selectEl.appendChild(noFolderOption);
+
+    for (const folder of folders || []) {
+      if (!folder?.id || !folder?.name) {
+        continue;
+      }
+      const option = document.createElement("option");
+      option.value = folder.id;
+      option.textContent = folder.name;
+      selectEl.appendChild(option);
+    }
+
+    const hasSelection = Array.from(selectEl.options).some((option) => option.value === previousSelection);
+    selectedFolderId = hasSelection ? previousSelection : "";
+    selectEl.value = selectedFolderId;
+  }
+
+  async function loadFolders(selectEl, { silent = false } = {}) {
+    const response = await sendRuntimeMessage("LIST_FOLDERS");
+    if (!response?.ok) {
+      if (!silent) {
+        showToast(response?.error || "Failed to load folders", true);
+      }
+      populateFolderSelect(selectEl, []);
+      return;
+    }
+
+    const folders = Array.isArray(response.data) ? response.data : [];
+    populateFolderSelect(selectEl, folders);
   }
 
   async function expandLoadedThread(maxPasses = 8) {
@@ -58,9 +103,7 @@
   }
 
   async function sendIngest(payload) {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "INGEST_X", payload }, resolve);
-    });
+    return sendRuntimeMessage("INGEST_X", payload);
   }
 
   async function saveTweet() {
@@ -83,6 +126,7 @@
       root_tweet_url: tweet.url,
       tweets: [tweet],
       captured_count: 1,
+      folder_id: selectedFolderId || null,
       is_partial: false,
     };
 
@@ -92,7 +136,7 @@
       return;
     }
 
-    showToast("Tweet saved");
+    showToast(selectedFolderId ? "Tweet saved to folder" : "Tweet saved");
   }
 
   async function saveThread() {
@@ -118,6 +162,7 @@
       root_tweet_url: rootUrl,
       tweets,
       captured_count: tweets.length,
+      folder_id: selectedFolderId || null,
       is_partial: pendingMore,
       partial_reason: pendingMore ? "Not all replies loaded in DOM" : null,
     };
@@ -128,7 +173,7 @@
       return;
     }
 
-    showToast(`Thread saved (${tweets.length} tweets)`);
+    showToast(selectedFolderId ? `Thread saved to folder (${tweets.length} tweets)` : `Thread saved (${tweets.length} tweets)`);
   }
 
   async function openCopilot() {
@@ -149,14 +194,54 @@
     root.style.top = "72px";
     root.style.zIndex = "999999";
     root.style.display = "grid";
+    root.style.justifyItems = "end";
     root.style.gap = "8px";
 
     const btnStyle =
       "background:#0f8f75;color:#fff;border:0;border-radius:10px;padding:8px 10px;cursor:pointer;font-size:12px;box-shadow:0 6px 14px rgba(0,0,0,0.2)";
+    const buttonWidth = "150px";
+
+    const folderRow = document.createElement("div");
+    folderRow.style.display = "flex";
+    folderRow.style.alignItems = "center";
+    folderRow.style.gap = "6px";
+    folderRow.style.background = "rgba(255,255,255,0.96)";
+    folderRow.style.border = "1px solid #cbd5e1";
+    folderRow.style.borderRadius = "10px";
+    folderRow.style.padding = "6px";
+    folderRow.style.boxShadow = "0 6px 14px rgba(0,0,0,0.15)";
+
+    const folderSelect = document.createElement("select");
+    folderSelect.style.border = "1px solid #cbd5e1";
+    folderSelect.style.borderRadius = "8px";
+    folderSelect.style.padding = "6px 8px";
+    folderSelect.style.fontSize = "12px";
+    folderSelect.style.minWidth = "150px";
+    folderSelect.style.background = "#fff";
+    folderSelect.addEventListener("change", () => {
+      selectedFolderId = folderSelect.value;
+    });
+
+    const refreshFoldersBtn = document.createElement("button");
+    refreshFoldersBtn.type = "button";
+    refreshFoldersBtn.textContent = "Refresh";
+    refreshFoldersBtn.style.background = "#e2e8f0";
+    refreshFoldersBtn.style.color = "#1e293b";
+    refreshFoldersBtn.style.border = "1px solid #cbd5e1";
+    refreshFoldersBtn.style.borderRadius = "8px";
+    refreshFoldersBtn.style.padding = "6px 8px";
+    refreshFoldersBtn.style.cursor = "pointer";
+    refreshFoldersBtn.style.fontSize = "12px";
+    refreshFoldersBtn.addEventListener("click", () => {
+      void loadFolders(folderSelect);
+    });
+
+    folderRow.append(folderSelect, refreshFoldersBtn);
 
     const tweetBtn = document.createElement("button");
     tweetBtn.textContent = "Save Tweet";
     tweetBtn.setAttribute("style", btnStyle);
+    tweetBtn.style.width = buttonWidth;
     tweetBtn.addEventListener("click", () => {
       void saveTweet();
     });
@@ -164,6 +249,7 @@
     const threadBtn = document.createElement("button");
     threadBtn.textContent = "Save Thread";
     threadBtn.setAttribute("style", btnStyle);
+    threadBtn.style.width = buttonWidth;
     threadBtn.addEventListener("click", () => {
       void saveThread();
     });
@@ -174,12 +260,15 @@
       "style",
       "background:#173d69;color:#fff;border:0;border-radius:10px;padding:8px 10px;cursor:pointer;font-size:12px;box-shadow:0 6px 14px rgba(0,0,0,0.2)",
     );
+    copilotBtn.style.width = buttonWidth;
     copilotBtn.addEventListener("click", () => {
       void openCopilot();
     });
 
-    root.append(tweetBtn, threadBtn, copilotBtn);
+    root.append(folderRow, tweetBtn, threadBtn, copilotBtn);
     document.body.appendChild(root);
+
+    void loadFolders(folderSelect, { silent: true });
   }
 
   mountToolbar();
