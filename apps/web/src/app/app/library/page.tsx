@@ -1,8 +1,12 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ItemsCard } from "@/components/library/items-card";
+import { LibraryLoadingState } from "@/components/library/library-loading";
+import { ThreadsCard } from "@/components/library/threads-card";
+import { PageHeader } from "@/components/layout/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { LibraryItem, LibraryThreadListItem } from "@/lib/types";
 
 export default function LibraryPage() {
@@ -35,52 +39,46 @@ export default function LibraryPage() {
       }
     }
 
-    load();
+    void load();
   }, []);
 
   if (loading) {
-    return <p>Loading library...</p>;
+    return (
+      <section className="space-y-6">
+        <PageHeader
+          title="Library"
+          description="Review saved thread captures and recent tweets ingested from your extension."
+        />
+        <LibraryLoadingState />
+      </section>
+    );
   }
 
   if (error) {
-    return <p className="error">{error}</p>;
+    return (
+      <section className="space-y-6">
+        <PageHeader
+          title="Library"
+          description="Review saved thread captures and recent tweets ingested from your extension."
+        />
+        <Alert variant="destructive">
+          <AlertTitle>Failed to load library</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </section>
+    );
   }
 
   return (
-    <section className="grid">
-      <article className="panel">
-        <h2>Saved Threads</h2>
-        {threads.length === 0 && <p>No threads yet. Use the extension to save a thread from X.</p>}
-        <ul>
-          {threads.map((thread) => (
-            <li key={thread.id} className="list-row">
-              <div>
-                <Link href={`/app/threads/${thread.id}`}>{thread.title}</Link>
-                <p>
-                  v{thread.capture_version} • {thread.item_count} items {thread.is_partial ? "• partial capture" : ""}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </article>
-
-      <article className="panel">
-        <h2>Latest Saved Tweets</h2>
-        {items.length === 0 && <p>No tweets saved yet.</p>}
-        <ul>
-          {items.slice(0, 20).map((item) => (
-            <li key={item.id} className="list-row">
-              <a href={item.url} target="_blank" rel="noreferrer">
-                @{item.author_handle}
-              </a>
-              <p>{item.text}</p>
-            </li>
-          ))}
-        </ul>
-      </article>
+    <section className="space-y-6">
+      <PageHeader
+        title="Library"
+        description="Review saved thread captures and recent tweets ingested from your extension."
+      />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ThreadsCard threads={threads} />
+        <ItemsCard items={items} />
+      </div>
     </section>
   );
 }
-
-

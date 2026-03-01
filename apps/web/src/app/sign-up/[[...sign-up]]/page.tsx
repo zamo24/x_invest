@@ -1,12 +1,15 @@
+import { SignUp } from "@clerk/nextjs";
+
+import { AuthShell } from "@/components/auth/auth-shell";
+
 export default function SignUpPage() {
   if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
-    return <p style={{ padding: 24 }}>Set Clerk keys in .env to enable sign-up.</p>;
+    return <AuthShell message="Set Clerk keys in .env to enable sign-up." />;
   }
 
-  const { SignUp } = require("@clerk/nextjs");
   return (
-    <main className="landing">
+    <AuthShell>
       <SignUp />
-    </main>
+    </AuthShell>
   );
 }

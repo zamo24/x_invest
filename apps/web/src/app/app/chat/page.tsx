@@ -2,9 +2,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { ChatForm } from "@/components/chat/chat-form";
+import { ChatResult } from "@/components/chat/chat-result";
+import { PageHeader } from "@/components/layout/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ChatSource, LibraryThreadListItem } from "@/lib/types";
 
-type ChatResult = {
+type ChatResultPayload = {
   answer_text: string;
   cited_sources: ChatSource[];
 };
@@ -14,21 +18,24 @@ export default function ChatPage() {
   const [scope, setScope] = useState<"all" | "thread">("all");
   const [threadId, setThreadId] = useState("");
   const [threads, setThreads] = useState<LibraryThreadListItem[]>([]);
-  const [result, setResult] = useState<ChatResult | null>(null);
+  const [result, setResult] = useState<ChatResultPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadThreads() {
       const res = await fetch("/api/library/threads", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        return;
+      }
+
       setThreads((await res.json()) as LibraryThreadListItem[]);
     }
 
     void loadThreads();
   }, []);
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError(null);
@@ -50,7 +57,7 @@ export default function ChatPage() {
         throw new Error(maybeJson?.detail || "Chat request failed");
       }
 
-      setResult((await res.json()) as ChatResult);
+      setResult((await res.json()) as ChatResultPayload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -59,58 +66,32 @@ export default function ChatPage() {
   }
 
   return (
-    <section className="panel">
-      <h2>Investor Copilot Chat</h2>
-      <form onSubmit={onSubmit} className="chat-form">
-        <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={5} />
-        <div className="form-row">
-          <label>
-            Scope
-            <select value={scope} onChange={(event) => setScope(event.target.value as "all" | "thread")}>
-              <option value="all">All saved items</option>
-              <option value="thread">Single thread</option>
-            </select>
-          </label>
+    <section className="space-y-6">
+      <PageHeader
+        title="Investor Copilot"
+        description="Ask questions across your saved X corpus and review source-grounded citations."
+      />
 
-          {scope === "thread" && (
-            <label>
-              Thread
-              <select value={threadId} onChange={(event) => setThreadId(event.target.value)}>
-                <option value="">Select thread...</option>
-                {threads.map((thread) => (
-                  <option key={thread.id} value={thread.id}>
-                    {thread.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-        <button className="primary" type="submit" disabled={loading}>
-          {loading ? "Running..." : "Ask Copilot"}
-        </button>
-      </form>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Chat request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      {error && <p className="error">{error}</p>}
+      <ChatForm
+        message={message}
+        scope={scope}
+        threadId={threadId}
+        threads={threads}
+        loading={loading}
+        onMessageChange={setMessage}
+        onScopeChange={setScope}
+        onThreadChange={setThreadId}
+        onSubmit={onSubmit}
+      />
 
-      {result && (
-        <div className="chat-result">
-          <h3>Answer</h3>
-          <pre>{result.answer_text}</pre>
-
-          <h3>Sources Used</h3>
-          <ul>
-            {result.cited_sources.map((source) => (
-              <li key={source.tweet_url}>
-                <a href={source.tweet_url} target="_blank" rel="noreferrer">
-                  {source.tweet_url}
-                </a>
-                <p>{source.snippet}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {result ? <ChatResult answerText={result.answer_text} sources={result.cited_sources} /> : null}
     </section>
   );
 }
