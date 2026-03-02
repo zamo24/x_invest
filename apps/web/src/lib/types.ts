@@ -49,3 +49,17 @@ export type ChatSource = {
   created_at: string | null;
   snippet: string;
 };
+
+export type ModelSettings = {
+  inference_mode: "hosted" | "byok";
+  preferred_provider: "openai";
+  preferred_model: string;
+  reasoning_effort: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  byo_openai_key_configured: boolean;
+  byo_openai_key_last4: string | null;
+  hosted_provider: "openai";
+  hosted_default_model: string;
+  hosted_available_models: string[];
+  available_reasoning_efforts: Array<"none" | "minimal" | "low" | "medium" | "high" | "xhigh">;
+  supported_byok_providers: Array<"openai">;
+};

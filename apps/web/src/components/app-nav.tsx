@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/app/library", label: "Library" },
   { href: "/app/chat", label: "Chat" },
+  { href: "/app/settings/models", label: "Models" },
   { href: "/app/settings/tokens", label: "API Tokens" },
 ];
 

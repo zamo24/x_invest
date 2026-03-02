@@ -6,6 +6,7 @@ from app.db.models import User
 from app.db.session import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.embeddings import embed_text
+from app.services.model_settings import ModelSettingsError, resolve_chat_execution
 from app.services.openai_client import OpenAIServiceError
 from app.services.rag import build_answer, retrieve_chunks
 
@@ -18,6 +19,16 @@ def chat(
     user: User = Depends(get_any_authenticated_user),
     db: Session = Depends(get_db),
 ) -> ChatResponse:
+    try:
+        chat_execution = resolve_chat_execution(
+            db=db,
+            user=user,
+            requested_provider=payload.provider,
+            requested_model=payload.model,
+        )
+    except ModelSettingsError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
     thread_id = None
     if payload.scope == "thread":
         if not payload.thread_id:
@@ -47,8 +58,21 @@ def chat(
     )
 
     try:
-        bundle = build_answer(payload.message, retrieved)
+        bundle = build_answer(
+            payload.message,
+            retrieved,
+            chat_model=chat_execution.model,
+            reasoning_effort=chat_execution.reasoning_effort,
+            api_key=chat_execution.api_key,
+        )
     except OpenAIServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
-    return ChatResponse(answer_text=bundle.answer_text, cited_sources=bundle.cited_sources)
+    return ChatResponse(
+        answer_text=bundle.answer_text,
+        cited_sources=bundle.cited_sources,
+        provider_used=chat_execution.provider,
+        model_used=chat_execution.model,
+        inference_mode_used=chat_execution.inference_mode,
+        reasoning_effort_used=chat_execution.reasoning_effort,
+    )

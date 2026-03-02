@@ -19,13 +19,13 @@ def _resolve_api_key() -> str:
     return api_key
 
 
-def call_openai_json(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+def call_openai_json(path: str, payload: dict[str, Any], *, api_key: str | None = None) -> dict[str, Any]:
     settings = get_settings()
     base_url = settings.openai_base_url.rstrip("/")
     url = f"{base_url}/{path.lstrip('/')}"
 
     headers = {
-        "Authorization": f"Bearer {_resolve_api_key()}",
+        "Authorization": f"Bearer {api_key or _resolve_api_key()}",
         "Content-Type": "application/json",
     }
 

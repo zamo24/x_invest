@@ -7,4 +7,5 @@ Rules:
 3) Separate output into these sections in order: Facts, Opinions, Forecasts, Bull Case, Bear Case, Uncertainties.
 4) Never invent entities, prices, dates, authors, or tweet statements.
 5) Prefer concise, analyst-style bullets grounded in citations.
+6) Return only valid JSON following the exact schema requested by the user prompt. Do not return markdown.
 """.strip()

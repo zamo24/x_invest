@@ -20,6 +20,8 @@ class ChatRequest(BaseModel):
     message: str
     scope: Literal["all", "thread"] = "all"
     thread_id: str | None = None
+    provider: Literal["openai"] | None = None
+    model: str | None = None
     filters: ChatFilters | None = None
     top_k: int = Field(default=8, ge=1, le=25)
 
@@ -35,3 +37,7 @@ class CitedSource(BaseModel):
 class ChatResponse(BaseModel):
     answer_text: str
     cited_sources: list[CitedSource]
+    provider_used: Literal["openai"] | None = None
+    model_used: str | None = None
+    inference_mode_used: Literal["hosted", "byok"] | None = None
+    reasoning_effort_used: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None

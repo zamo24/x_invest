@@ -44,12 +44,15 @@ cp .env.example .env
 - `CHAT_MODEL=gpt-4o-mini`
 - `EMBEDDING_DIM=256` (keeps compatibility with current pgvector schema)
 - Optional: `OPENAI_BASE_URL`, `OPENAI_TIMEOUT_SECONDS`
+- `BYOK_ENCRYPTION_KEY` (required if users will store BYOK API keys)
+- `HOSTED_CHAT_PROVIDER=openai`
+- `HOSTED_CHAT_MODELS=gpt-4o-mini,gpt-4.1-mini,gpt-5-mini,gpt-5.2`
 
 5. CORS hardening defaults (can override if needed):
 
 - `CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
 - `CORS_ALLOW_ORIGIN_REGEX=^chrome-extension://[a-z]{32}$`
-- `CORS_ALLOW_METHODS=GET,POST,DELETE,OPTIONS`
+- `CORS_ALLOW_METHODS=GET,POST,PUT,PATCH,DELETE,OPTIONS`
 - `CORS_ALLOW_HEADERS=Authorization,Content-Type`
 - `CORS_ALLOW_CREDENTIALS=true`
 
@@ -117,6 +120,8 @@ pnpm -C apps/web test:e2e:list
 - `DELETE /v1/tokens/{id}` revoke PAT
 - `POST /v1/ingest/x` (Bearer PAT) ingest tweet/thread capture
 - `POST /v1/chat` (Bearer PAT or Bearer Clerk JWT) source-grounded chat
+- `GET /v1/model-settings` (Bearer PAT or Bearer Clerk JWT) get hosted/BYOK model settings
+- `PUT /v1/model-settings` update hosted/BYOK model settings (OpenAI BYOK in MVP, including `reasoning_effort` for GPT-5 models)
 - `GET /v1/library/items` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/threads` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/threads/{id}` (Bearer PAT or Bearer Clerk JWT)
@@ -180,6 +185,21 @@ curl -X POST http://localhost:8000/v1/chat \
   }'
 ```
 
+### 4) Configure BYOK (OpenAI) for a user
+
+```bash
+curl -X PUT http://localhost:8000/v1/model-settings \
+  -H "Authorization: Bearer xic_pat_REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inference_mode": "byok",
+    "preferred_provider": "openai",
+    "preferred_model": "gpt-5-mini",
+    "reasoning_effort": "high",
+    "byo_openai_api_key": "sk-REPLACE_ME"
+  }'
+```
+
 ## Extension Setup (Chrome)
 
 1. Open `chrome://extensions`
@@ -198,12 +218,14 @@ curl -X POST http://localhost:8000/v1/chat \
 - Next.js route handlers forward `Authorization: Bearer <Clerk session JWT>` to FastAPI.
 - If a proxied request gets `401`, the web layer refreshes the Clerk token once and retries.
 - FastAPI verifies Clerk JWTs using Clerk JWKS (`CLERK_JWKS_URL`) and issuer (`CLERK_ISSUER`).
+- Web users can manage model routing at `http://localhost:3000/app/settings/models`.
 
 ## Dev Notes
 
 - DB extension init: `infra/db/init.sql` includes `CREATE EXTENSION IF NOT EXISTS vector;`
 - If `EMBEDDING_MODEL`/`CHAT_MODEL` are set to `local-*`, API uses local deterministic fallback logic.
 - If non-local models are configured, API calls OpenAI (`/v1/embeddings` and `/v1/chat/completions`).
-- `/v1/chat` enforces source-grounded output with citations and marks unsupported claims as `Unknown / Speculation`.
+- `/v1/chat` requests strict JSON sections from the LLM, then server-side validates grounding against cited snippets.
+- Unsupported or weakly grounded claims are relabeled as `Unknown / Speculation`.
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
 - Thread recaptures dedupe on root tweet identity and increment `capture_version` instead of creating duplicate thread rows.

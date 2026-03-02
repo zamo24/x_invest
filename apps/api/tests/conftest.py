@@ -18,6 +18,7 @@ from app.db.session import SessionLocal
 def configure_test_models() -> None:
     os.environ["EMBEDDING_MODEL"] = "local-hash-v1"
     os.environ["CHAT_MODEL"] = "local-grounded-v1"
+    os.environ["BYOK_ENCRYPTION_KEY"] = "pytest-byok-encryption-secret"
     get_settings.cache_clear()
 
 

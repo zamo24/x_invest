@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+import json
+import re
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +20,15 @@ BULL_HINTS = ("bull", "upside", "tailwind", "growth", "beat", "strong", "improve
 BEAR_HINTS = ("bear", "downside", "risk", "bottleneck", "weak", "miss", "headwind", "short")
 FORECAST_HINTS = ("will", "expect", "forecast", "guidance", "could", "target", "likely", "next quarter")
 OPINION_HINTS = ("i think", "we think", "i believe", "opinion", "imo", "view")
+SECTION_ORDER: list[tuple[str, str]] = [
+    ("facts", "Facts"),
+    ("opinions", "Opinions"),
+    ("forecasts", "Forecasts"),
+    ("bull_case", "Bull Case"),
+    ("bear_case", "Bear Case"),
+    ("uncertainties", "Uncertainties"),
+]
+WORD_RE = re.compile(r"[a-z0-9]{3,}")
 
 
 @dataclass
@@ -274,9 +285,20 @@ def _build_chat_user_prompt(question: str, sources: list[CitedSource]) -> str:
             "Retrieved sources:",
             "\n\n".join(source_lines),
             (
-                "Return sections exactly in this order:\n"
-                "Facts\nOpinions\nForecasts\nBull Case\nBear Case\nUncertainties\n\n"
-                "For every material claim, include at least one explicit tweet URL from the sources."
+                "Return ONLY valid JSON. No markdown, no code fences, no prose outside JSON.\n"
+                "Schema:\n"
+                "{\n"
+                '  "facts": [{"claim": string, "citations": [tweet_url, ...]}],\n'
+                '  "opinions": [{"claim": string, "citations": [tweet_url, ...]}],\n'
+                '  "forecasts": [{"claim": string, "citations": [tweet_url, ...]}],\n'
+                '  "bull_case": [{"claim": string, "citations": [tweet_url, ...]}],\n'
+                '  "bear_case": [{"claim": string, "citations": [tweet_url, ...]}],\n'
+                '  "uncertainties": [{"claim": string, "citations": [tweet_url, ...]}]\n'
+                "}\n\n"
+                "Rules:\n"
+                "- Cite only URLs from retrieved sources.\n"
+                "- Unsupported claims must start with 'Unknown / Speculation:'.\n"
+                "- Keep claims concise."
             ),
         ]
     )
@@ -302,28 +324,206 @@ def _extract_chat_completion_text(payload: dict[str, Any]) -> str:
     raise OpenAIServiceError("OpenAI chat response has empty message content.")
 
 
-def _build_openai_answer(question: str, sources: list[CitedSource]) -> str:
-    settings = get_settings()
-    payload = {
-        "model": settings.chat_model,
-        "temperature": 0.1,
+def _normalize_url(value: str) -> str:
+    return value.strip()
+
+
+def _parse_llm_structured_payload(content: str) -> dict[str, list[dict[str, Any]]] | None:
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+
+    alias_map = {
+        "facts": "facts",
+        "fact": "facts",
+        "opinions": "opinions",
+        "opinion": "opinions",
+        "forecasts": "forecasts",
+        "forecast": "forecasts",
+        "bull_case": "bull_case",
+        "bullcase": "bull_case",
+        "bear_case": "bear_case",
+        "bearcase": "bear_case",
+        "uncertainties": "uncertainties",
+        "uncertainty": "uncertainties",
+    }
+    normalized: dict[str, list[dict[str, Any]]] = {key: [] for key, _ in SECTION_ORDER}
+
+    for raw_key, raw_value in parsed.items():
+        if not isinstance(raw_key, str):
+            continue
+        key = alias_map.get(raw_key.strip().lower())
+        if key is None or not isinstance(raw_value, list):
+            continue
+
+        entries: list[dict[str, Any]] = []
+        for item in raw_value:
+            if isinstance(item, str):
+                claim = item.strip()
+                if claim:
+                    entries.append({"claim": claim, "citations": []})
+                continue
+            if not isinstance(item, dict):
+                continue
+
+            claim_raw = item.get("claim")
+            if not isinstance(claim_raw, str):
+                continue
+            claim = claim_raw.strip()
+            if not claim:
+                continue
+
+            citations_raw = item.get("citations", [])
+            citations: list[str] = []
+            if isinstance(citations_raw, list):
+                for citation in citations_raw:
+                    if isinstance(citation, str):
+                        normalized_url = _normalize_url(citation)
+                        if normalized_url:
+                            citations.append(normalized_url)
+            elif isinstance(citations_raw, str):
+                normalized_url = _normalize_url(citations_raw)
+                if normalized_url:
+                    citations.append(normalized_url)
+
+            entries.append({"claim": claim, "citations": citations})
+
+        normalized[key] = entries
+
+    return normalized
+
+
+def _has_claim_source_overlap(claim: str, snippet: str) -> bool:
+    claim_clean = claim.strip().lower()
+    snippet_clean = snippet.strip().lower()
+    if not claim_clean or not snippet_clean:
+        return False
+    if claim_clean in snippet_clean or snippet_clean in claim_clean:
+        return True
+
+    claim_tokens = set(WORD_RE.findall(claim_clean))
+    snippet_tokens = set(WORD_RE.findall(snippet_clean))
+    if not claim_tokens or not snippet_tokens:
+        return False
+
+    overlap_size = len(claim_tokens & snippet_tokens)
+    if len(claim_tokens) <= 4:
+        return overlap_size >= 1
+    return overlap_size >= 2
+
+
+def _render_validated_sections(
+    structured: dict[str, list[dict[str, Any]]],
+    sources: list[CitedSource],
+) -> str:
+    source_by_url = {_normalize_url(source.tweet_url): source for source in sources}
+    lines: list[str] = []
+
+    for section_key, section_title in SECTION_ORDER:
+        lines.append(f"{section_title}:")
+        section_entries = structured.get(section_key, [])
+        section_lines: list[str] = []
+
+        for entry in section_entries[:6]:
+            claim_raw = entry.get("claim")
+            citations_raw = entry.get("citations", [])
+            if not isinstance(claim_raw, str):
+                continue
+            claim = claim_raw.strip()
+            if not claim:
+                continue
+
+            citations: list[str] = []
+            if isinstance(citations_raw, list):
+                for citation in citations_raw:
+                    if not isinstance(citation, str):
+                        continue
+                    normalized_url = _normalize_url(citation)
+                    if normalized_url in source_by_url:
+                        citations.append(normalized_url)
+
+            if not citations:
+                section_lines.append(f"Unknown / Speculation: {claim}")
+                continue
+
+            grounded = any(
+                _has_claim_source_overlap(claim=claim, snippet=source_by_url[citation].snippet) for citation in citations
+            )
+            if not grounded:
+                section_lines.append(f"Unknown / Speculation: {claim}")
+                continue
+
+            citation_blob = ", ".join(citations[:2])
+            section_lines.append(f"{claim} (source: {citation_blob})")
+
+        if not section_lines:
+            section_lines = ["Unknown / Speculation: no directly supported claims."]
+
+        lines.extend([f"- {line}" for line in section_lines])
+
+    return "\n".join(lines)
+
+
+def _build_openai_answer(
+    question: str,
+    sources: list[CitedSource],
+    *,
+    chat_model: str,
+    reasoning_effort: str | None,
+    api_key: str | None,
+) -> str:
+    payload: dict[str, Any] = {
+        "model": chat_model,
         "messages": [
             {"role": "system", "content": GROUNDED_ANALYSIS_PROMPT},
             {"role": "user", "content": _build_chat_user_prompt(question, sources)},
         ],
     }
-    response = call_openai_json("chat/completions", payload)
+    # Some newer model families (e.g. gpt-5*) only allow default temperature.
+    if not chat_model.strip().lower().startswith("gpt-5"):
+        payload["temperature"] = 0.1
+    elif reasoning_effort and reasoning_effort != "none":
+        payload["reasoning_effort"] = reasoning_effort
+    response = call_openai_json("chat/completions", payload, api_key=api_key)
     return _extract_chat_completion_text(response)
 
 
-def build_answer(question: str, chunks: list[RetrievedChunk]) -> AnswerBundle:
+def build_answer(
+    question: str,
+    chunks: list[RetrievedChunk],
+    *,
+    chat_model: str | None = None,
+    reasoning_effort: str | None = None,
+    api_key: str | None = None,
+) -> AnswerBundle:
     deduped_sources = _dedupe_sources(chunks)
     if not deduped_sources:
         return _unknown_bundle("No cited tweets matched this request.")
 
     settings = get_settings()
-    if _uses_local_chat_model(settings.chat_model):
+    resolved_model = chat_model or settings.chat_model
+    if _uses_local_chat_model(resolved_model):
         return AnswerBundle(answer_text=_build_rule_based_answer(question, deduped_sources), cited_sources=deduped_sources)
 
-    answer = _build_openai_answer(question, deduped_sources)
-    return AnswerBundle(answer_text=answer, cited_sources=deduped_sources)
+    raw_answer = _build_openai_answer(
+        question,
+        deduped_sources,
+        chat_model=resolved_model,
+        reasoning_effort=reasoning_effort,
+        api_key=api_key,
+    )
+    structured = _parse_llm_structured_payload(raw_answer)
+    if structured is None:
+        return AnswerBundle(
+            answer_text=_build_rule_based_answer(question, deduped_sources),
+            cited_sources=deduped_sources,
+        )
+
+    return AnswerBundle(
+        answer_text=_render_validated_sections(structured, deduped_sources),
+        cited_sources=deduped_sources,
+    )

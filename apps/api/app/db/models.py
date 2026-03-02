@@ -24,6 +24,9 @@ class User(Base):
 
     api_tokens: Mapped[list[ApiToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
     folders: Mapped[list[XFolder]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    model_settings: Mapped[UserModelSettings | None] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class ApiToken(Base):
@@ -39,6 +42,27 @@ class ApiToken(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="api_tokens")
+
+
+class UserModelSettings(Base):
+    __tablename__ = "user_model_settings"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    inference_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="hosted", server_default="hosted")
+    preferred_provider: Mapped[str] = mapped_column(String(50), nullable=False, default="openai", server_default="openai")
+    preferred_model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reasoning_effort: Mapped[str] = mapped_column(String(20), nullable=False, default="medium", server_default="medium")
+    byo_openai_api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    byo_openai_api_key_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    byo_openai_api_key_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="model_settings")
 
 
 class XItem(Base):
