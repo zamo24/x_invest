@@ -21,6 +21,7 @@ BEAR_HINTS = ("bear", "downside", "risk", "bottleneck", "weak", "miss", "headwin
 FORECAST_HINTS = ("will", "expect", "forecast", "guidance", "could", "target", "likely", "next quarter")
 OPINION_HINTS = ("i think", "we think", "i believe", "opinion", "imo", "view")
 SECTION_ORDER: list[tuple[str, str]] = [
+    ("executive_summary", "Executive Summary"),
     ("facts", "Facts"),
     ("opinions", "Opinions"),
     ("forecasts", "Forecasts"),
@@ -141,7 +142,7 @@ def retrieve_chunks(
     return filtered
 
 
-def _shorten(text: str, max_len: int = 240) -> str:
+def _shorten(text: str, max_len: int = 420) -> str:
     stripped = " ".join((text or "").split())
     if len(stripped) <= max_len:
         return stripped
@@ -149,43 +150,59 @@ def _shorten(text: str, max_len: int = 240) -> str:
 
 
 def _dedupe_sources(chunks: list[RetrievedChunk]) -> list[CitedSource]:
-    evidence = []
+    evidence_by_url: dict[str, dict[str, Any]] = {}
     for rc in chunks:
         metadata = rc.chunk.metadata_json or {}
         tweet_url = metadata.get("tweet_url")
         if not tweet_url:
             continue
 
+        normalized_url = str(tweet_url)
         snippet = _shorten(rc.chunk.chunk_text)
-        evidence.append(
-            CitedSource(
-                tweet_url=str(tweet_url),
-                tweet_id=metadata.get("tweet_id"),
-                author_handle=metadata.get("author_handle"),
-                created_at=_parse_datetime(metadata.get("created_at")),
-                snippet=snippet,
-            )
+        payload = evidence_by_url.setdefault(
+            normalized_url,
+            {
+                "tweet_id": metadata.get("tweet_id"),
+                "author_handle": metadata.get("author_handle"),
+                "created_at": _parse_datetime(metadata.get("created_at")),
+                "snippets": [],
+            },
         )
 
+        snippets: list[str] = payload["snippets"]
+        if snippet and snippet not in snippets and len(snippets) < 4:
+            snippets.append(snippet)
+
     deduped_sources: list[CitedSource] = []
-    seen_urls: set[str] = set()
-    for source in evidence:
-        if source.tweet_url in seen_urls:
-            continue
-        seen_urls.add(source.tweet_url)
+    for tweet_url, payload in evidence_by_url.items():
+        snippets = payload.get("snippets", [])
+        merged_snippet = "\n---\n".join(snippets[:4]).strip()
+        if not merged_snippet:
+            merged_snippet = "No textual snippet available."
+
+        source = CitedSource(
+            tweet_url=tweet_url,
+            tweet_id=payload.get("tweet_id"),
+            author_handle=payload.get("author_handle"),
+            created_at=payload.get("created_at"),
+            snippet=merged_snippet,
+        )
         deduped_sources.append(source)
 
     return deduped_sources[:8]
 
 
 def _unknown_bundle(reason: str) -> AnswerBundle:
-    answer = (
-        "Facts: Unknown / Speculation.\n"
-        "Opinions: Unknown / Speculation.\n"
-        "Forecasts: Unknown / Speculation.\n"
-        "Bull Case: Unknown / Speculation.\n"
-        "Bear Case: Unknown / Speculation.\n"
-        f"Uncertainties: {reason}"
+    answer = "\n\n".join(
+        [
+            "Executive Summary: Unknown / Speculation: insufficient grounded evidence to answer the question.",
+            "Facts: Unknown / Speculation.",
+            "Opinions: Unknown / Speculation.",
+            "Forecasts: Unknown / Speculation.",
+            "Bull Case: Unknown / Speculation.",
+            "Bear Case: Unknown / Speculation.",
+            f"Uncertainties: {reason}",
+        ]
     )
     return AnswerBundle(answer_text=answer, cited_sources=[])
 
@@ -237,24 +254,22 @@ def _build_rule_based_answer(question: str, sources: list[CitedSource]) -> str:
         bear_case = ["Unknown / Speculation: no clearly bearish evidence in cited tweets."]
 
     uncertainties = [
-        "Unknown / Speculation: anything not explicitly stated in the cited tweets above.",
-        f"Query asked: {question}",
+        "Unknown / Speculation: anything not explicitly stated in the cited sources above.",
+        f"Unknown / Speculation: query context not fully covered -> {question}",
     ]
 
-    return "\n".join(
+    def _as_section(title: str, lines: list[str], limit: int = 3) -> str:
+        return f"{title}: {' '.join(lines[:limit])}"
+
+    return "\n\n".join(
         [
-            "Facts:",
-            *[f"- {line}" for line in facts[:4]],
-            "Opinions:",
-            *[f"- {line}" for line in opinions[:4]],
-            "Forecasts:",
-            *[f"- {line}" for line in forecasts[:4]],
-            "Bull Case:",
-            *[f"- {line}" for line in bull_case[:4]],
-            "Bear Case:",
-            *[f"- {line}" for line in bear_case[:4]],
-            "Uncertainties:",
-            *[f"- {line}" for line in uncertainties],
+            _as_section("Executive Summary", facts[:1] or ["Unknown / Speculation."]),
+            _as_section("Facts", facts, 3),
+            _as_section("Opinions", opinions, 2),
+            _as_section("Forecasts", forecasts, 2),
+            _as_section("Bull Case", bull_case, 2),
+            _as_section("Bear Case", bear_case, 2),
+            _as_section("Uncertainties", uncertainties, 2),
         ]
     )
 
@@ -288,6 +303,7 @@ def _build_chat_user_prompt(question: str, sources: list[CitedSource]) -> str:
                 "Return ONLY valid JSON. No markdown, no code fences, no prose outside JSON.\n"
                 "Schema:\n"
                 "{\n"
+                '  "executive_summary": [{"claim": string, "citations": [tweet_url, ...]}],\n'
                 '  "facts": [{"claim": string, "citations": [tweet_url, ...]}],\n'
                 '  "opinions": [{"claim": string, "citations": [tweet_url, ...]}],\n'
                 '  "forecasts": [{"claim": string, "citations": [tweet_url, ...]}],\n'
@@ -298,7 +314,9 @@ def _build_chat_user_prompt(question: str, sources: list[CitedSource]) -> str:
                 "Rules:\n"
                 "- Cite only URLs from retrieved sources.\n"
                 "- Unsupported claims must start with 'Unknown / Speculation:'.\n"
-                "- Keep claims concise."
+                "- Prioritize synthesis over extraction: combine related evidence across sources when possible.\n"
+                "- Do not simply restate snippets; infer a concise analyst memo grounded in citations.\n"
+                "- Keep each section to 1-3 high-signal claims."
             ),
         ]
     )
@@ -338,6 +356,8 @@ def _parse_llm_structured_payload(content: str) -> dict[str, list[dict[str, Any]
         return None
 
     alias_map = {
+        "executive_summary": "executive_summary",
+        "summary": "executive_summary",
         "facts": "facts",
         "fact": "facts",
         "opinions": "opinions",
@@ -424,7 +444,6 @@ def _render_validated_sections(
     lines: list[str] = []
 
     for section_key, section_title in SECTION_ORDER:
-        lines.append(f"{section_title}:")
         section_entries = structured.get(section_key, [])
         section_lines: list[str] = []
 
@@ -463,9 +482,9 @@ def _render_validated_sections(
         if not section_lines:
             section_lines = ["Unknown / Speculation: no directly supported claims."]
 
-        lines.extend([f"- {line}" for line in section_lines])
+        lines.append(f"{section_title}: {' '.join(section_lines)}")
 
-    return "\n".join(lines)
+    return "\n\n".join(lines)
 
 
 def _build_openai_answer(
