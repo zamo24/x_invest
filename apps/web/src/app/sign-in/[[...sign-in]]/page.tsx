@@ -9,7 +9,7 @@ export default function SignInPage() {
 
   return (
     <AuthShell>
-      <SignIn />
+      <SignIn forceRedirectUrl="/app/library" fallbackRedirectUrl="/app/library" />
     </AuthShell>
   );
 }

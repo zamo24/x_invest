@@ -19,6 +19,16 @@ export const metadata: Metadata = {
 };
 
 const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const themeBootScript = `
+(() => {
+  try {
+    const saved = window.localStorage.getItem("xic-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = saved ? saved === "dark" : prefersDark;
+    document.documentElement.classList.toggle("dark", isDark);
+  } catch {}
+})();
+`;
 
 export default function RootLayout({
   children,
@@ -27,16 +37,22 @@ export default function RootLayout({
 }>) {
   if (!publishableKey) {
     return (
-      <html lang="en">
-        <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${geistSans.variable} ${geistMono.variable}`}>
+          <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+          {children}
+        </body>
       </html>
     );
   }
 
   return (
     <ClerkProvider publishableKey={publishableKey}>
-      <html lang="en">
-        <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${geistSans.variable} ${geistMono.variable}`}>
+          <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );

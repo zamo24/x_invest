@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 const alertVariants = cva("relative w-full rounded-lg border p-4 text-sm", {
   variants: {
     variant: {
-      default: "border-slate-200 bg-white text-slate-900",
-      destructive: "border-rose-300 bg-rose-50 text-rose-800",
-      warning: "border-amber-300 bg-amber-50 text-amber-900",
+      default: "border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100",
+      destructive: "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200",
+      warning: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
     },
   },
   defaultVariants: {
