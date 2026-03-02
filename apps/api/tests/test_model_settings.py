@@ -177,7 +177,7 @@ def test_chat_structured_output_enforces_grounded_citations(
     chat_response = client.post(
         "/v1/chat",
         headers=headers,
-        json={"message": "Summarize", "scope": "all", "top_k": 4},
+        json={"message": "Summarize", "scope": "all", "top_k": 4, "model": "gpt-4o-mini"},
     )
     assert chat_response.status_code == 200, chat_response.text
     answer_text = chat_response.json()["answer_text"]

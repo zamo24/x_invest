@@ -1,6 +1,6 @@
 # X Investor Copilot (MVP)
 
-Browser extension + web app that lets users save X (Twitter) tweets/threads and chat over a personal, source-grounded RAG library with citations to exact tweet URLs.
+Browser extension + web app that lets users save X (Twitter) tweets/threads/articles and chat over a personal, source-grounded RAG library with citations to exact source URLs.
 
 ## Monorepo Structure
 
@@ -118,7 +118,7 @@ pnpm -C apps/web test:e2e:list
 - `POST /v1/tokens` (Bearer Clerk JWT) create PAT
 - `GET /v1/tokens` list PATs
 - `DELETE /v1/tokens/{id}` revoke PAT
-- `POST /v1/ingest/x` (Bearer PAT) ingest tweet/thread capture
+- `POST /v1/ingest/x` (Bearer PAT) ingest tweet/thread/article capture
 - `POST /v1/chat` (Bearer PAT or Bearer Clerk JWT) source-grounded chat
 - `GET /v1/model-settings` (Bearer PAT or Bearer Clerk JWT) get hosted/BYOK model settings
 - `PUT /v1/model-settings` update hosted/BYOK model settings (OpenAI BYOK in MVP, including `reasoning_effort` for GPT-5 models)
@@ -172,6 +172,30 @@ curl -X POST http://localhost:8000/v1/ingest/x \
   }'
 ```
 
+Article ingest example:
+
+```bash
+curl -X POST http://localhost:8000/v1/ingest/x \
+  -H "Authorization: Bearer xic_pat_REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capture_type": "article",
+    "page_url": "https://x.com/i/article/abc123",
+    "article": {
+      "article_id": "abc123",
+      "url": "https://x.com/i/article/abc123",
+      "title": "HBM Supply Outlook",
+      "author_handle": "semicapital",
+      "author_name": "Semi Capital",
+      "text": "HBM packaging constraints are easing slowly in 2026.",
+      "captured_at": "2026-03-02T01:00:00Z"
+    },
+    "tweets": [],
+    "captured_count": 1,
+    "is_partial": false
+  }'
+```
+
 ### 3) Chat request
 
 ```bash
@@ -210,6 +234,7 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 6. Visit `https://x.com/*`, use:
    - `Save Tweet`
    - `Save Thread`
+   - `Save Article` (on `x.com/i/article/*` pages)
    - `Open Copilot`
 
 ## Clerk Notes

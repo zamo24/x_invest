@@ -10,12 +10,14 @@ from app.api.deps import AuthUser, get_auth_user
 from app.db.models import Chunk, XFolder, XItem, XThread, XThreadItem
 from app.db.session import get_db
 from app.schemas.ingest import IngestXRequest, IngestXResponse
-from app.services.embeddings import embed_text
+from app.services.embeddings import embed_many, embed_text
 from app.services.ingest import (
+    build_article_chunk_texts,
     build_item_chunk_text,
     build_thread_macro_chunk_text,
     build_thread_title,
     coalesce_capture_time,
+    normalize_article_id,
     normalize_tweet_id,
     stable_item_hash,
 )
@@ -84,6 +86,105 @@ def ingest_x(
     item_ids = []
     items_for_request: list[XItem] = []
     stored_count = 0
+
+    if payload.capture_type == "article":
+        if payload.article is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="article payload is required when capture_type='article'",
+            )
+
+        article = payload.article
+        article_id = normalize_article_id(article.article_id, article.url, article.title, article.text)
+        item = db.execute(
+            select(XItem).where(XItem.user_id == user.id, XItem.tweet_id == article_id)
+        ).scalar_one_or_none()
+
+        article_raw = dict(article.json_raw or {})
+        article_raw.update(
+            {
+                "source_kind": "article",
+                "title": article.title,
+                "article_id": article_id,
+            }
+        )
+        article_author_handle = article.author_handle or "unknown"
+
+        if item is None:
+            item = XItem(
+                user_id=user.id,
+                folder_id=folder_id,
+                tweet_id=article_id,
+                url=article.url,
+                author_handle=article_author_handle,
+                author_name=article.author_name,
+                created_at=_ensure_utc(article.created_at),
+                captured_at=_ensure_utc(coalesce_capture_time(article.captured_at)) or datetime.now(timezone.utc),
+                text=article.text,
+                quoted_json=None,
+                json_raw=article_raw,
+                hash=stable_item_hash(user.id, article_id, article.url, article.text),
+            )
+            db.add(item)
+            db.flush()
+            stored_count += 1
+        else:
+            item.url = article.url
+            item.author_handle = article_author_handle
+            item.author_name = article.author_name
+            item.created_at = _ensure_utc(article.created_at)
+            item.captured_at = _ensure_utc(coalesce_capture_time(article.captured_at)) or datetime.now(timezone.utc)
+            item.text = article.text
+            item.json_raw = article_raw
+            item.hash = stable_item_hash(user.id, article_id, article.url, article.text)
+            if folder_id is not None:
+                item.folder_id = folder_id
+            db.add(item)
+            db.flush()
+        db.execute(
+            delete(Chunk).where(
+                Chunk.user_id == user.id,
+                Chunk.source_type == "x_item",
+                Chunk.source_id == item.id,
+            )
+        )
+
+        item_chunk_texts = build_article_chunk_texts(item)
+        try:
+            item_embeddings = embed_many(item_chunk_texts)
+        except OpenAIServiceError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+        for idx, (item_text, item_embedding) in enumerate(zip(item_chunk_texts, item_embeddings)):
+            item_chunk = Chunk(
+                user_id=user.id,
+                source_type="x_item",
+                source_id=item.id,
+                chunk_text=item_text,
+                chunk_order=idx,
+                embedding=item_embedding,
+                metadata_json={
+                    "tweet_url": item.url,
+                    "tweet_id": item.tweet_id,
+                    "author_handle": item.author_handle,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "source_type": "x_item",
+                    "source_kind": "article",
+                    "title": article.title,
+                    "chunk_order": idx,
+                    "chunk_total": len(item_chunk_texts),
+                },
+            )
+            db.add(item_chunk)
+
+        db.commit()
+        return IngestXResponse(
+            thread_id=None,
+            thread_version=None,
+            item_ids=[item.id],
+            stored_count=stored_count,
+            is_partial=payload.is_partial,
+        )
 
     for tw in payload.tweets:
         tweet_id = normalize_tweet_id(tw.tweet_id, tw.url, tw.text)

@@ -33,7 +33,7 @@ export default function LibraryPage() {
   const authorHandles = useMemo(() => {
     const handles = new Set<string>();
     for (const item of items) {
-      if (item.author_handle) {
+      if (item.author_handle && item.author_handle !== "unknown") {
         handles.add(item.author_handle);
       }
     }
@@ -145,6 +145,8 @@ export default function LibraryPage() {
         item.author_name,
         item.created_at,
         item.captured_at,
+        item.source_kind,
+        item.title,
         item.text,
         item.folder_name,
       ]
@@ -290,7 +292,7 @@ export default function LibraryPage() {
       <section className="space-y-6">
         <PageHeader
           title="Library"
-          description="Review saved thread captures and recent tweets ingested from your extension."
+          description="Review saved thread captures and recent items ingested from your extension."
         />
         <LibraryLoadingState />
       </section>
@@ -301,7 +303,7 @@ export default function LibraryPage() {
     <section className="space-y-6">
       <PageHeader
         title="Library"
-        description="Review saved thread captures and recent tweets ingested from your extension."
+        description="Review saved thread captures and recent items ingested from your extension."
       />
 
       {error ? (

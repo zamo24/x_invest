@@ -48,12 +48,12 @@ export function ItemsCard({ items, folders, assigningItemId, onAssignFolder }: I
   return (
     <Card className="flex h-full max-h-[70vh] flex-col">
       <CardHeader>
-        <CardTitle>Latest Saved Tweets</CardTitle>
-        <CardDescription>Recent tweet captures available for retrieval and chat.</CardDescription>
+        <CardTitle>Latest Saved Items</CardTitle>
+        <CardDescription>Recent tweet and article captures available for retrieval and chat.</CardDescription>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {items.length === 0 ? (
-          <p className="text-sm text-slate-600">No tweets saved yet.</p>
+          <p className="text-sm text-slate-600">No items saved yet.</p>
         ) : (
           items.slice(0, 20).map((item, index) => (
             <div key={item.id} className="space-y-3">
@@ -66,11 +66,15 @@ export function ItemsCard({ items, folders, assigningItemId, onAssignFolder }: I
                     rel="noreferrer"
                     className="font-medium text-slate-900 hover:text-emerald-700"
                   >
-                    @{item.author_handle}
+                    {item.source_kind === "article" ? item.title || "Untitled article" : `@${item.author_handle}`}
                   </a>
                   <Badge variant="outline">{formatDate(item.created_at ?? item.captured_at)}</Badge>
+                  <Badge variant="outline">{item.source_kind === "article" ? "Article" : "Tweet"}</Badge>
                   {item.folder_name ? <Badge variant="secondary">{item.folder_name}</Badge> : null}
                 </div>
+                {item.source_kind === "article" && item.author_handle !== "unknown" ? (
+                  <p className="text-xs text-slate-500">by @{item.author_handle}</p>
+                ) : null}
                 <div className="max-w-xs">
                   <Select
                     value={item.folder_id ?? ""}

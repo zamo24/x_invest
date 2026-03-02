@@ -58,4 +58,87 @@ describe("capture-core", () => {
     expect(tweets).toHaveLength(2);
     expect(tweets.map((t) => t.tweet_id)).toEqual(["111", "222"]);
   });
+
+  it("extracts article content from an X article page", () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>HBM Capacity Deep Dive</h1>
+        <article>
+          <p>HBM supply remains constrained due to packaging bottlenecks.</p>
+          <p>Vendors are expanding capacity but demand still outpaces output.</p>
+        </article>
+      </main>
+    `;
+
+    const api = globalThis.XicCaptureCore;
+    const article = api.extractArticle(document, "https://x.com/i/article/abc123xyz");
+
+    expect(article).toBeTruthy();
+    expect(article.article_id).toBe("abc123xyz");
+    expect(article.title).toBe("HBM Capacity Deep Dive");
+    expect(article.text).toContain("HBM supply remains constrained");
+    expect(article.url).toBe("https://x.com/i/article/abc123xyz");
+  });
+
+  it("extracts article using canonical URL when page URL is not /i/article", () => {
+    document.body.innerHTML = `
+      <link rel="canonical" href="https://x.com/i/articles/xyz_789" />
+      <main>
+        <h1>Photonics Roadmap</h1>
+        <article>
+          <p>CPO adoption may accelerate with AI cluster power constraints.</p>
+          <p>Packaging ecosystem maturity remains a gating factor.</p>
+        </article>
+      </main>
+    `;
+
+    const api = globalThis.XicCaptureCore;
+    const article = api.extractArticle(document, "https://x.com/someuser/status/123");
+
+    expect(article).toBeTruthy();
+    expect(article.article_id).toBe("xyz_789");
+    expect(article.url).toBe("https://x.com/i/articles/xyz_789");
+  });
+
+  it("falls back to meta title and main text blocks", () => {
+    document.body.innerHTML = `
+      <meta property="og:title" content="AI Infra Supply Chain 2026" />
+      <main>
+        <section>
+          Manufacturing updates suggest memory and packaging constraints are improving, while power and cooling remain structural bottlenecks for cluster rollout.
+        </section>
+      </main>
+    `;
+
+    const api = globalThis.XicCaptureCore;
+    const article = api.extractArticle(document, "https://x.com/i/articles/meta_001");
+
+    expect(article).toBeTruthy();
+    expect(article.title).toBe("AI Infra Supply Chain 2026");
+    expect(article.text).toContain("Manufacturing updates suggest memory and packaging constraints");
+  });
+
+  it("prefers article body over profile description text", () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>HBM TAM Outlook</h1>
+        <section>
+          <div data-testid="UserDescription">
+            Investor writing about semis and AI. 120K followers. Following 240. Joined 2018.
+          </div>
+        </section>
+        <article>
+          <p>HBM capacity is expanding but packaging and test remain gating factors through 2026.</p>
+          <p>Memory pricing upside depends on sustained AI demand and customer qualification timelines.</p>
+        </article>
+      </main>
+    `;
+
+    const api = globalThis.XicCaptureCore;
+    const article = api.extractArticle(document, "https://x.com/i/articles/hbm_2026");
+
+    expect(article).toBeTruthy();
+    expect(article.text).toContain("HBM capacity is expanding");
+    expect(article.text).not.toContain("120K followers");
+  });
 });

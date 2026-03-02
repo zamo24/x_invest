@@ -176,6 +176,32 @@
     showToast(selectedFolderId ? `Thread saved to folder (${tweets.length} tweets)` : `Thread saved (${tweets.length} tweets)`);
   }
 
+  async function saveArticle() {
+    const article = core.extractArticle(document, window.location.href);
+    if (!article) {
+      showToast("Could not detect article content on this page", true);
+      return;
+    }
+
+    const payload = {
+      capture_type: "article",
+      page_url: window.location.href,
+      article,
+      tweets: [],
+      captured_count: 1,
+      folder_id: selectedFolderId || null,
+      is_partial: false,
+    };
+
+    const response = await sendIngest(payload);
+    if (!response?.ok) {
+      showToast(response?.error || "Article save failed", true);
+      return;
+    }
+
+    showToast(selectedFolderId ? "Article saved to folder" : "Article saved");
+  }
+
   async function openCopilot() {
     chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" }, () => {
       showToast("Copilot opened");
@@ -254,6 +280,14 @@
       void saveThread();
     });
 
+    const articleBtn = document.createElement("button");
+    articleBtn.textContent = "Save Article";
+    articleBtn.setAttribute("style", btnStyle);
+    articleBtn.style.width = buttonWidth;
+    articleBtn.addEventListener("click", () => {
+      void saveArticle();
+    });
+
     const copilotBtn = document.createElement("button");
     copilotBtn.textContent = "Open Copilot";
     copilotBtn.setAttribute(
@@ -265,7 +299,7 @@
       void openCopilot();
     });
 
-    root.append(folderRow, tweetBtn, threadBtn, copilotBtn);
+    root.append(folderRow, tweetBtn, threadBtn, articleBtn, copilotBtn);
     document.body.appendChild(root);
 
     void loadFolders(folderSelect, { silent: true });

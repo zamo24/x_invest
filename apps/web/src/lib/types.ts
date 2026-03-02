@@ -30,6 +30,8 @@ export type LibraryItem = {
   created_at: string | null;
   captured_at: string;
   text: string;
+  source_kind: "tweet" | "article";
+  title: string | null;
   folder_id: string | null;
   folder_name: string | null;
 };

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
     openai_timeout_seconds: float = Field(default=30.0, alias="OPENAI_TIMEOUT_SECONDS")
+    embedding_max_tokens: int = Field(default=6000, alias="EMBEDDING_MAX_TOKENS")
+    embedding_max_chars: int = Field(default=24000, alias="EMBEDDING_MAX_CHARS")
+    embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
     byok_encryption_key: str | None = Field(default=None, alias="BYOK_ENCRYPTION_KEY")
     embedding_dim: int = Field(default=256, alias="EMBEDDING_DIM")
 

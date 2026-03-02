@@ -21,6 +21,16 @@ def _assert_folder_access(folder_id: UUID, user_id: UUID, db: Session) -> XFolde
 
 
 def _library_item(item: XItem, folder_name: str | None) -> LibraryItem:
+    source_kind = "tweet"
+    title = None
+    if isinstance(item.json_raw, dict):
+        maybe_kind = item.json_raw.get("source_kind")
+        if maybe_kind == "article":
+            source_kind = "article"
+        maybe_title = item.json_raw.get("title")
+        if isinstance(maybe_title, str) and maybe_title.strip():
+            title = maybe_title.strip()
+
     return LibraryItem(
         id=item.id,
         tweet_id=item.tweet_id,
@@ -30,6 +40,8 @@ def _library_item(item: XItem, folder_name: str | None) -> LibraryItem:
         created_at=item.created_at,
         captured_at=item.captured_at,
         text=item.text,
+        source_kind=source_kind,
+        title=title,
         folder_id=item.folder_id,
         folder_name=folder_name,
     )

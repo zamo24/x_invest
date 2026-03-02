@@ -26,12 +26,25 @@ class IngestTweetPayload(BaseModel):
     json_raw: dict[str, Any] | None = None
 
 
+class IngestArticlePayload(BaseModel):
+    article_id: str | None = None
+    url: str
+    title: str
+    author_handle: str | None = None
+    author_name: str | None = None
+    created_at: datetime | None = None
+    text: str
+    captured_at: datetime
+    json_raw: dict[str, Any] | None = None
+
+
 class IngestXRequest(BaseModel):
-    capture_type: Literal["tweet", "thread"]
+    capture_type: Literal["tweet", "thread", "article"]
     page_url: str
     root_tweet_id: str | None = None
     root_tweet_url: str | None = None
     tweets: list[IngestTweetPayload] = Field(default_factory=list)
+    article: IngestArticlePayload | None = None
     captured_count: int
     folder_id: UUID | None = None
     is_partial: bool = False
@@ -71,6 +84,8 @@ class LibraryItem(BaseModel):
     created_at: datetime | None
     captured_at: datetime
     text: str
+    source_kind: Literal["tweet", "article"] = "tweet"
+    title: str | None = None
     folder_id: UUID | None
     folder_name: str | None = None
 

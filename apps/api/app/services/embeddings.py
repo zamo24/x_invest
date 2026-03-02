@@ -34,6 +34,19 @@ def _uses_local_embeddings(model: str) -> bool:
     return model.strip().lower().startswith("local-")
 
 
+def _truncate_embedding_input(text: str, *, max_chars: int, max_tokens: int) -> str:
+    """Keep embedding input under practical bounds for hosted providers."""
+    normalized = (text or "").strip()
+    if len(normalized) > max_chars:
+        normalized = normalized[:max_chars]
+
+    tokens = normalized.split()
+    if len(tokens) > max_tokens:
+        normalized = " ".join(tokens[:max_tokens])
+
+    return normalized
+
+
 def _openai_embed_many(texts: list[str], model: str, dim: int) -> list[list[float]]:
     payload: dict[str, object] = {"model": model, "input": texts}
     if model.startswith("text-embedding-3"):
@@ -82,4 +95,17 @@ def embed_many(texts: Iterable[str], dim: int = EMBEDDING_DIM) -> list[list[floa
     if _uses_local_embeddings(model):
         return [_local_embed_text(text, dim=dim) for text in text_list]
 
-    return _openai_embed_many(text_list, model=model, dim=dim)
+    safe_inputs = [
+        _truncate_embedding_input(
+            text,
+            max_chars=settings.embedding_max_chars,
+            max_tokens=settings.embedding_max_tokens,
+        )
+        for text in text_list
+    ]
+    batch_size = max(1, int(settings.embedding_batch_size))
+    vectors: list[list[float]] = []
+    for start in range(0, len(safe_inputs), batch_size):
+        batch = safe_inputs[start : start + batch_size]
+        vectors.extend(_openai_embed_many(batch, model=model, dim=dim))
+    return vectors
