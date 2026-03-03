@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ChatThreadListItem } from "@/lib/types";
@@ -14,6 +13,7 @@ type ChatThreadsProps = {
   isUpdating: boolean;
   canGoPrev: boolean;
   canGoNext: boolean;
+  onStartNewThread: () => void;
   onSelectThread: (threadId: string) => void;
   onRenameThread: (threadId: string, title: string) => Promise<void>;
   onDeleteThread: (threadId: string) => Promise<void>;
@@ -21,23 +21,13 @@ type ChatThreadsProps = {
   onNextPage: () => void;
 };
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return "No messages yet";
-  }
-  const asDate = new Date(value);
-  if (Number.isNaN(asDate.getTime())) {
-    return "Unknown";
-  }
-  return asDate.toLocaleString();
-}
-
 export function ChatThreads({
   threads,
   selectedThreadId,
   isUpdating,
   canGoPrev,
   canGoNext,
+  onStartNewThread,
   onSelectThread,
   onRenameThread,
   onDeleteThread,
@@ -74,33 +64,35 @@ export function ChatThreads({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Saved Chat Threads</CardTitle>
-        <CardDescription>Threads are auto-saved every time you ask Copilot.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <aside className="flex h-full w-full flex-col rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+      <div className="border-b border-slate-200 p-3 dark:border-slate-800">
+        <Button type="button" className="w-full justify-start" onClick={onStartNewThread} disabled={isUpdating}>
+          + New Chat
+        </Button>
+      </div>
+
+      <div className="flex-1 space-y-2 overflow-y-auto p-3">
         {threads.length === 0 ? (
-          <p className="text-sm text-slate-600">No chat threads yet.</p>
+          <p className="px-2 text-sm text-slate-500">No chats yet</p>
         ) : (
           threads.map((thread) => (
             <div
               key={thread.id}
               className={cn(
-                "space-y-2 rounded-md border p-2",
-                selectedThreadId === thread.id ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-white",
+                "rounded-lg border p-2",
+                selectedThreadId === thread.id
+                  ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
+                  : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950",
               )}
             >
-              <button type="button" onClick={() => onSelectThread(thread.id)} className="w-full text-left">
-                <p className="truncate text-sm font-medium text-slate-900">{thread.title}</p>
-                <p className="text-xs text-slate-500">
-                  {thread.message_count} messages - {formatDate(thread.last_message_at)}
-                </p>
-              </button>
-
               {editingThreadId === thread.id ? (
                 <div className="space-y-2">
-                  <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} maxLength={200} />
+                  <Input
+                    value={draftTitle}
+                    onChange={(event) => setDraftTitle(event.target.value)}
+                    maxLength={200}
+                    autoFocus
+                  />
                   <div className="flex gap-2">
                     <Button type="button" size="sm" onClick={() => void saveRename(thread.id)} disabled={isUpdating}>
                       Save
@@ -117,40 +109,46 @@ export function ChatThreads({
                   </div>
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => beginRename(thread)}
-                    disabled={isUpdating}
-                  >
-                    Rename
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => void handleDelete(thread)}
-                    disabled={isUpdating}
-                  >
-                    Delete
-                  </Button>
+                <div className="space-y-2">
+                  <button type="button" onClick={() => onSelectThread(thread.id)} className="w-full text-left">
+                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{thread.title}</p>
+                    <p className="text-xs text-slate-500">{thread.message_count} messages</p>
+                  </button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => beginRename(thread)}
+                      disabled={isUpdating}
+                    >
+                      Rename
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void handleDelete(thread)}
+                      disabled={isUpdating}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           ))
         )}
+      </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <Button type="button" variant="outline" size="sm" onClick={onPrevPage} disabled={!canGoPrev || isUpdating}>
-            Previous
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onNextPage} disabled={!canGoNext || isUpdating}>
-            Next
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex items-center justify-between border-t border-slate-200 p-3 dark:border-slate-800">
+        <Button type="button" variant="outline" size="sm" onClick={onPrevPage} disabled={!canGoPrev || isUpdating}>
+          Previous
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onNextPage} disabled={!canGoNext || isUpdating}>
+          Next
+        </Button>
+      </div>
+    </aside>
   );
 }

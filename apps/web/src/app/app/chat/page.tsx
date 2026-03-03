@@ -1,32 +1,36 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ChatForm } from "@/components/chat/chat-form";
 import { ChatHistory } from "@/components/chat/chat-history";
-import { ChatResult } from "@/components/chat/chat-result";
 import { ChatThreads } from "@/components/chat/chat-threads";
-import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type {
-  ChatMessageItem,
-  ChatSource,
-  ChatThreadDetail,
-  ChatThreadListItem,
-  Folder,
-  LibraryThreadListItem,
-} from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import type { ChatMessageItem, ChatThreadDetail, ChatThreadListItem, Folder, LibraryThreadListItem } from "@/lib/types";
 
 type ChatResultPayload = {
   chat_thread_id: string | null;
-  answer_text: string;
-  cited_sources: ChatSource[];
 };
 
 const THREAD_PAGE_SIZE = 12;
 
+function buildOptimisticUserMessage(text: string): ChatMessageItem {
+  return {
+    id: `temp-user-${Date.now()}`,
+    role: "user",
+    message_text: text,
+    cited_sources: [],
+    provider_used: null,
+    model_used: null,
+    inference_mode_used: null,
+    reasoning_effort_used: null,
+    created_at: new Date().toISOString(),
+  };
+}
+
 export default function ChatPage() {
-  const [message, setMessage] = useState("Summarize my latest semiconductor takes.");
+  const [message, setMessage] = useState("");
   const [scope, setScope] = useState<"all" | "thread">("all");
   const [threadId, setThreadId] = useState("");
   const [folderId, setFolderId] = useState("");
@@ -37,10 +41,24 @@ export default function ChatPage() {
   const [chatThreads, setChatThreads] = useState<ChatThreadListItem[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [result, setResult] = useState<ChatResultPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [threadOpsLoading, setThreadOpsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const currentThreadTitle = useMemo(() => {
+    if (!chatThreadId) {
+      return "New chat";
+    }
+    const selected = chatThreads.find((thread) => thread.id === chatThreadId);
+    return selected?.title || "Saved chat";
+  }, [chatThreadId, chatThreads]);
+
+  function upsertSidebarThread(thread: ChatThreadListItem) {
+    setChatThreads((current) => {
+      const next = [thread, ...current.filter((entry) => entry.id !== thread.id)];
+      return next.slice(0, THREAD_PAGE_SIZE);
+    });
+  }
 
   async function loadChatThreads(offset = chatThreadOffset, preferredThreadId?: string) {
     const chatThreadsRes = await fetch(`/api/chat/threads?limit=${THREAD_PAGE_SIZE}&offset=${offset}`, {
@@ -65,22 +83,25 @@ export default function ChatPage() {
       return;
     }
 
-    setChatThreadId(payload[0].id);
+    if (!chatThreadId) {
+      setChatThreadId(payload[0].id);
+    }
   }
 
-  async function loadChatThreadDetail(activeThreadId: string) {
+  async function loadChatThreadDetail(activeThreadId: string): Promise<ChatThreadDetail | null> {
     if (!activeThreadId) {
       setChatMessages([]);
-      return;
+      return null;
     }
 
     const detailRes = await fetch(`/api/chat/threads/${activeThreadId}`, { cache: "no-store" });
     if (!detailRes.ok) {
       setChatMessages([]);
-      return;
+      return null;
     }
     const payload = (await detailRes.json()) as ChatThreadDetail;
     setChatMessages(payload.messages);
+    return payload;
   }
 
   useEffect(() => {
@@ -108,6 +129,14 @@ export default function ChatPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      return;
+    }
+
+    const optimisticUserMessage = buildOptimisticUserMessage(trimmedMessage);
+    setChatMessages((current) => [...current, optimisticUserMessage]);
+    setMessage("");
     setLoading(true);
     setError(null);
 
@@ -116,7 +145,7 @@ export default function ChatPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          message,
+          message: trimmedMessage,
           scope,
           thread_id: scope === "thread" ? threadId : undefined,
           chat_thread_id: chatThreadId || undefined,
@@ -131,12 +160,16 @@ export default function ChatPage() {
       }
 
       const payload = (await res.json()) as ChatResultPayload;
-      setResult(payload);
       const activeThreadId = payload.chat_thread_id || chatThreadId;
       setChatThreadOffset(0);
       await loadChatThreads(0, activeThreadId || undefined);
-      await loadChatThreadDetail(activeThreadId || "");
+      const detail = await loadChatThreadDetail(activeThreadId || "");
+      if (detail?.thread) {
+        upsertSidebarThread(detail.thread);
+      }
     } catch (err) {
+      setChatMessages((current) => current.filter((entry) => entry.id !== optimisticUserMessage.id));
+      setMessage(trimmedMessage);
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
@@ -180,7 +213,7 @@ export default function ChatPage() {
       setChatThreadOffset(nextOffset);
 
       if (deletingSelectedThread) {
-        setResult(null);
+        setChatMessages([]);
       }
 
       await loadChatThreads(nextOffset, deletingSelectedThread ? undefined : chatThreadId);
@@ -212,30 +245,26 @@ export default function ChatPage() {
   function onStartNewThread() {
     setChatThreadId("");
     setChatMessages([]);
-    setResult(null);
+    setError(null);
   }
 
   return (
-    <section className="space-y-6">
-      <PageHeader
-        title="Investor Copilot"
-        description="Ask questions across your saved X corpus and review source-grounded citations."
-      />
-
+    <section className="h-[calc(100vh-9rem)] min-h-[620px]">
       {error ? (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="mb-4">
           <AlertTitle>Chat request failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid h-full gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
         <ChatThreads
           threads={chatThreads}
           selectedThreadId={chatThreadId}
           isUpdating={threadOpsLoading || loading}
           canGoPrev={chatThreadOffset > 0}
           canGoNext={hasMoreChatThreads}
+          onStartNewThread={onStartNewThread}
           onSelectThread={setChatThreadId}
           onRenameThread={onRenameChatThread}
           onDeleteThread={onDeleteChatThread}
@@ -243,26 +272,35 @@ export default function ChatPage() {
           onNextPage={() => void onNextThreadPage()}
         />
 
-        <div className="space-y-6">
-          <ChatForm
-            message={message}
-            hasActiveChatThread={Boolean(chatThreadId)}
-            scope={scope}
-            threadId={threadId}
-            folderId={folderId}
-            threads={threads}
-            folders={folders}
-            loading={loading}
-            onMessageChange={setMessage}
-            onScopeChange={setScope}
-            onThreadChange={setThreadId}
-            onFolderChange={setFolderId}
-            onStartNewThread={onStartNewThread}
-            onSubmit={onSubmit}
-          />
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-6">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Investor Copilot</p>
+              <p className="max-w-[70vw] truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{currentThreadTitle}</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={onStartNewThread} disabled={loading || threadOpsLoading}>
+              New chat
+            </Button>
+          </div>
 
-          <ChatHistory messages={chatMessages} />
-          {result ? <ChatResult answerText={result.answer_text} sources={result.cited_sources} /> : null}
+          <ChatHistory messages={chatMessages} loading={loading} />
+
+          <div className="border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40">
+            <ChatForm
+              message={message}
+              scope={scope}
+              threadId={threadId}
+              folderId={folderId}
+              threads={threads}
+              folders={folders}
+              loading={loading}
+              onMessageChange={setMessage}
+              onScopeChange={setScope}
+              onThreadChange={setThreadId}
+              onFolderChange={setFolderId}
+              onSubmit={onSubmit}
+            />
+          </div>
         </div>
       </div>
     </section>

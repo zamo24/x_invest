@@ -1,63 +1,188 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+"use client";
+
+import { useEffect, useRef } from "react";
+
 import type { ChatMessageItem } from "@/lib/types";
 
 type ChatHistoryProps = {
   messages: ChatMessageItem[];
+  loading: boolean;
+};
+
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+const ANALYSIS_SECTION_TITLES = new Set([
+  "Executive Summary",
+  "Facts",
+  "Opinions",
+  "Forecasts",
+  "Bull Case",
+  "Bear Case",
+  "Uncertainties",
+]);
+
+type ParsedSection = {
+  title: string;
+  points: string[];
 };
 
 function formatDate(value: string) {
   const asDate = new Date(value);
   if (Number.isNaN(asDate.getTime())) {
-    return "Unknown time";
+    return "";
   }
-  return asDate.toLocaleString();
+  return asDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-export function ChatHistory({ messages }: ChatHistoryProps) {
+function renderTextWithLinks(text: string) {
+  const parts = text.split(URL_RE);
+  return parts.map((part, index) => {
+    if (!part.startsWith("http://") && !part.startsWith("https://")) {
+      return <span key={`${part}-${index}`}>{part}</span>;
+    }
+
+    let url = part;
+    let trailing = "";
+    while (url.length > 0 && [")", ",", ".", ";"].includes(url[url.length - 1])) {
+      trailing = `${url[url.length - 1]}${trailing}`;
+      url = url.slice(0, -1);
+    }
+    return (
+      <span key={`${url}-${index}`}>
+        <a href={url} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline dark:text-emerald-300">
+          {url}
+        </a>
+        {trailing}
+      </span>
+    );
+  });
+}
+
+function splitSectionPoints(body: string): string[] {
+  const normalized = body.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const primary = normalized.split(/(?<=\))\s+(?=(?:Unknown \/ Speculation:|[A-Z]))/g).filter(Boolean);
+  if (primary.length > 1) {
+    return primary;
+  }
+
+  const fallback = normalized.split(/(?<=\.)\s+(?=Unknown \/ Speculation:)/g).filter(Boolean);
+  if (fallback.length > 1) {
+    return fallback;
+  }
+
+  return [normalized];
+}
+
+function parseAssistantSections(text: string): ParsedSection[] | null {
+  const chunks = text
+    .split(/\n\s*\n/g)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  const sections: ParsedSection[] = [];
+  for (const chunk of chunks) {
+    const match = chunk.match(/^([^:\n]{2,40}):\s*([\s\S]*)$/);
+    if (!match) {
+      continue;
+    }
+    const title = match[1].trim();
+    if (!ANALYSIS_SECTION_TITLES.has(title)) {
+      continue;
+    }
+    sections.push({
+      title,
+      points: splitSectionPoints(match[2].trim()),
+    });
+  }
+
+  return sections.length >= 2 ? sections : null;
+}
+
+export function ChatHistory({ messages, loading }: ChatHistoryProps) {
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, loading]);
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Conversation History</CardTitle>
-        <CardDescription>Follow-up prompts continue this saved thread.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {messages.length === 0 ? (
-          <p className="text-sm text-slate-600">No messages yet. Ask your first question to start a thread.</p>
-        ) : (
-          messages.map((message, index) => (
-            <div key={message.id} className="space-y-2">
-              {index > 0 ? <Separator /> : null}
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{message.role}</p>
-                <p className="text-xs text-slate-500">{formatDate(message.created_at)}</p>
-              </div>
-              <pre className="overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap text-slate-800">
-                {message.message_text}
-              </pre>
-              {message.role === "assistant" && message.cited_sources.length > 0 ? (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-slate-600">Saved citations</p>
-                  <ul className="space-y-1">
-                    {message.cited_sources.map((source) => (
-                      <li key={`${message.id}-${source.tweet_url}`}>
-                        <a
-                          href={source.tweet_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-emerald-700 hover:underline"
-                        >
-                          {source.tweet_url}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+    <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+      {messages.length === 0 ? (
+        <div className="mx-auto max-w-3xl rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+          Start a new chat or select a previous thread. Ask follow-up questions to continue the same conversation.
+        </div>
+      ) : (
+        <div className="mx-auto flex max-w-3xl flex-col gap-5">
+          {messages.map((message) => {
+            const isUser = message.role === "user";
+            const structuredSections = !isUser ? parseAssistantSections(message.message_text) : null;
+            return (
+              <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={
+                    isUser
+                      ? "max-w-[85%] rounded-2xl bg-emerald-600 px-4 py-3 text-sm text-white"
+                      : "max-w-[90%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                  }
+                >
+                  {structuredSections ? (
+                    <div className="space-y-3">
+                      {structuredSections.map((section) => (
+                        <section key={`${message.id}-${section.title}`} className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                            {section.title}
+                          </p>
+                          <ul className="list-disc space-y-1 pl-5">
+                            {section.points.map((point, index) => (
+                              <li key={`${message.id}-${section.title}-${index}`}>{renderTextWithLinks(point)}</li>
+                            ))}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap">{renderTextWithLinks(message.message_text)}</div>
+                  )}
+                  <div className={isUser ? "mt-2 text-right text-[11px] text-emerald-100" : "mt-2 text-[11px] text-slate-500"}>
+                    {formatDate(message.created_at)}
+                  </div>
+                  {!isUser && message.cited_sources.length > 0 ? (
+                    <div className="mt-3 space-y-1 border-t border-slate-200 pt-2 dark:border-slate-700">
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Sources</p>
+                      <ul className="space-y-1">
+                        {message.cited_sources.map((source) => (
+                          <li key={`${message.id}-${source.tweet_url}`}>
+                            <a
+                              href={source.tweet_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-emerald-700 hover:underline dark:text-emerald-300"
+                            >
+                              {source.tweet_url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              </div>
+            );
+          })}
+
+          {loading ? (
+            <div className="flex justify-start">
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                Copilot is thinking...
+              </div>
             </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
+          ) : null}
+        </div>
+      )}
+      <div ref={bottomRef} />
+    </div>
   );
 }
