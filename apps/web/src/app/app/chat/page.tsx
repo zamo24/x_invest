@@ -23,30 +23,49 @@ type ChatResultPayload = {
   cited_sources: ChatSource[];
 };
 
+const THREAD_PAGE_SIZE = 12;
+
 export default function ChatPage() {
   const [message, setMessage] = useState("Summarize my latest semiconductor takes.");
   const [scope, setScope] = useState<"all" | "thread">("all");
   const [threadId, setThreadId] = useState("");
   const [folderId, setFolderId] = useState("");
   const [chatThreadId, setChatThreadId] = useState("");
+  const [chatThreadOffset, setChatThreadOffset] = useState(0);
+  const [hasMoreChatThreads, setHasMoreChatThreads] = useState(false);
   const [threads, setThreads] = useState<LibraryThreadListItem[]>([]);
   const [chatThreads, setChatThreads] = useState<ChatThreadListItem[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [result, setResult] = useState<ChatResultPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [threadOpsLoading, setThreadOpsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadChatThreads() {
-    const chatThreadsRes = await fetch("/api/chat/threads", { cache: "no-store" });
+  async function loadChatThreads(offset = chatThreadOffset, preferredThreadId?: string) {
+    const chatThreadsRes = await fetch(`/api/chat/threads?limit=${THREAD_PAGE_SIZE}&offset=${offset}`, {
+      cache: "no-store",
+    });
     if (!chatThreadsRes.ok) {
       return;
     }
+
     const payload = (await chatThreadsRes.json()) as ChatThreadListItem[];
     setChatThreads(payload);
-    if (!chatThreadId && payload.length > 0) {
-      setChatThreadId(payload[0].id);
+    setHasMoreChatThreads(payload.length === THREAD_PAGE_SIZE);
+
+    const preferred = preferredThreadId ?? chatThreadId;
+    if (payload.length === 0) {
+      setChatThreadId("");
+      return;
     }
+
+    if (preferred && payload.some((thread) => thread.id === preferred)) {
+      setChatThreadId(preferred);
+      return;
+    }
+
+    setChatThreadId(payload[0].id);
   }
 
   async function loadChatThreadDetail(activeThreadId: string) {
@@ -77,7 +96,7 @@ export default function ChatPage() {
       if (foldersRes.ok) {
         setFolders((await foldersRes.json()) as Folder[]);
       }
-      await loadChatThreads();
+      await loadChatThreads(0);
     }
 
     void loadData().catch(() => undefined);
@@ -113,16 +132,81 @@ export default function ChatPage() {
 
       const payload = (await res.json()) as ChatResultPayload;
       setResult(payload);
-      if (payload.chat_thread_id) {
-        setChatThreadId(payload.chat_thread_id);
-      }
-      await loadChatThreads();
-      await loadChatThreadDetail(payload.chat_thread_id || chatThreadId);
+      const activeThreadId = payload.chat_thread_id || chatThreadId;
+      setChatThreadOffset(0);
+      await loadChatThreads(0, activeThreadId || undefined);
+      await loadChatThreadDetail(activeThreadId || "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onRenameChatThread(threadIdToRename: string, title: string) {
+    setThreadOpsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/chat/threads/${threadIdToRename}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (!response.ok) {
+        const maybeJson = await response.json().catch(() => ({}));
+        throw new Error(maybeJson?.detail || "Failed to rename chat thread");
+      }
+      await loadChatThreads(chatThreadOffset, threadIdToRename);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setThreadOpsLoading(false);
+    }
+  }
+
+  async function onDeleteChatThread(threadIdToDelete: string) {
+    setThreadOpsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/chat/threads/${threadIdToDelete}`, { method: "DELETE" });
+      if (!response.ok) {
+        const maybeJson = await response.json().catch(() => ({}));
+        throw new Error(maybeJson?.detail || "Failed to delete chat thread");
+      }
+
+      const deletingSelectedThread = chatThreadId === threadIdToDelete;
+      const shouldMoveToPreviousPage = chatThreads.length === 1 && chatThreadOffset > 0;
+      const nextOffset = shouldMoveToPreviousPage ? Math.max(0, chatThreadOffset - THREAD_PAGE_SIZE) : chatThreadOffset;
+      setChatThreadOffset(nextOffset);
+
+      if (deletingSelectedThread) {
+        setResult(null);
+      }
+
+      await loadChatThreads(nextOffset, deletingSelectedThread ? undefined : chatThreadId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setThreadOpsLoading(false);
+    }
+  }
+
+  async function onNextThreadPage() {
+    if (!hasMoreChatThreads || threadOpsLoading || loading) {
+      return;
+    }
+    const nextOffset = chatThreadOffset + THREAD_PAGE_SIZE;
+    setChatThreadOffset(nextOffset);
+    await loadChatThreads(nextOffset);
+  }
+
+  async function onPrevThreadPage() {
+    if (chatThreadOffset === 0 || threadOpsLoading || loading) {
+      return;
+    }
+    const nextOffset = Math.max(0, chatThreadOffset - THREAD_PAGE_SIZE);
+    setChatThreadOffset(nextOffset);
+    await loadChatThreads(nextOffset);
   }
 
   function onStartNewThread() {
@@ -146,7 +230,18 @@ export default function ChatPage() {
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <ChatThreads threads={chatThreads} selectedThreadId={chatThreadId} onSelectThread={setChatThreadId} />
+        <ChatThreads
+          threads={chatThreads}
+          selectedThreadId={chatThreadId}
+          isUpdating={threadOpsLoading || loading}
+          canGoPrev={chatThreadOffset > 0}
+          canGoNext={hasMoreChatThreads}
+          onSelectThread={setChatThreadId}
+          onRenameThread={onRenameChatThread}
+          onDeleteThread={onDeleteChatThread}
+          onPrevPage={() => void onPrevThreadPage()}
+          onNextPage={() => void onNextThreadPage()}
+        />
 
         <div className="space-y-6">
           <ChatForm

@@ -69,3 +69,7 @@ class ChatMessageItem(BaseModel):
 class ChatThreadDetail(BaseModel):
     thread: ChatThreadListItem
     messages: list[ChatMessageItem]
+
+
+class ChatThreadUpdateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)

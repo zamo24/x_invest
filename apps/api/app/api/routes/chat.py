@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.schemas.chat import (
     ChatResponse,
     ChatThreadDetail,
     ChatThreadListItem,
+    ChatThreadUpdateRequest,
     CitedSource,
 )
 from app.services.embeddings import embed_text
@@ -31,6 +32,16 @@ def _build_thread_title(message: str) -> str:
     if not cleaned:
         return "New Chat"
     return cleaned[:120]
+
+
+def _normalize_chat_thread_title(title: str) -> str:
+    cleaned = " ".join((title or "").split()).strip()
+    if not cleaned:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Thread title cannot be empty.",
+        )
+    return cleaned[:200]
 
 
 def _load_chat_thread_or_404(*, db: Session, user_id: UUID, chat_thread_id: UUID) -> ChatThread:
@@ -175,11 +186,17 @@ def chat(
 
 @router.get("/chat/threads", response_model=list[ChatThreadListItem])
 def list_chat_threads(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_any_authenticated_user),
     db: Session = Depends(get_db),
 ) -> list[ChatThreadListItem]:
     threads = db.execute(
-        select(ChatThread).where(ChatThread.user_id == user.id).order_by(ChatThread.updated_at.desc())
+        select(ChatThread)
+        .where(ChatThread.user_id == user.id)
+        .order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+        .offset(offset)
+        .limit(limit)
     ).scalars().all()
     return [_thread_list_item(db=db, thread=thread) for thread in threads]
 
@@ -225,3 +242,31 @@ def get_chat_thread(
         thread=_thread_list_item(db=db, thread=thread),
         messages=response_messages,
     )
+
+
+@router.patch("/chat/threads/{chat_thread_id}", response_model=ChatThreadListItem)
+def update_chat_thread(
+    chat_thread_id: UUID,
+    payload: ChatThreadUpdateRequest,
+    user: User = Depends(get_any_authenticated_user),
+    db: Session = Depends(get_db),
+) -> ChatThreadListItem:
+    thread = _load_chat_thread_or_404(db=db, user_id=user.id, chat_thread_id=chat_thread_id)
+    thread.title = _normalize_chat_thread_title(payload.title)
+    thread.updated_at = datetime.now(timezone.utc)
+    db.add(thread)
+    db.commit()
+    db.refresh(thread)
+    return _thread_list_item(db=db, thread=thread)
+
+
+@router.delete("/chat/threads/{chat_thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_chat_thread(
+    chat_thread_id: UUID,
+    user: User = Depends(get_any_authenticated_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    thread = _load_chat_thread_or_404(db=db, user_id=user.id, chat_thread_id=chat_thread_id)
+    db.delete(thread)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

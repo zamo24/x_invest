@@ -35,6 +35,25 @@ export function ChatHistory({ messages }: ChatHistoryProps) {
               <pre className="overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap text-slate-800">
                 {message.message_text}
               </pre>
+              {message.role === "assistant" && message.cited_sources.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-slate-600">Saved citations</p>
+                  <ul className="space-y-1">
+                    {message.cited_sources.map((source) => (
+                      <li key={`${message.id}-${source.tweet_url}`}>
+                        <a
+                          href={source.tweet_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-emerald-700 hover:underline"
+                        >
+                          {source.tweet_url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ))
         )}
