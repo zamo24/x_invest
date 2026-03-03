@@ -36,6 +36,9 @@ cp .env.example .env
 - `CLERK_JWT_TEMPLATE` (optional; set only if you configured a custom Clerk JWT template for backend auth)
 
 3. Set `TOKEN_PEPPER` to a long random string.
+   Optional token policy:
+   - `PAT_DEFAULT_TTL_DAYS` (default `90`)
+   - `PAT_MAX_TTL_DAYS` (default `365`)
 
 4. For OpenAI-backed embeddings + chat (step 2), set:
 
@@ -55,6 +58,13 @@ cp .env.example .env
 - `CORS_ALLOW_METHODS=GET,POST,PUT,PATCH,DELETE,OPTIONS`
 - `CORS_ALLOW_HEADERS=Authorization,Content-Type`
 - `CORS_ALLOW_CREDENTIALS=true`
+- Do not use `*` in `CORS_ALLOW_ORIGINS` when credentials are enabled.
+
+6. Observability defaults:
+
+- `APP_VERSION=0.1.0`
+- `LOG_LEVEL=INFO`
+- API responses include `x-request-id` for tracing.
 
 ## Run Locally (Docker)
 
@@ -113,6 +123,10 @@ Web e2e test listing (Playwright):
 pnpm -C apps/web test:e2e:list
 ```
 
+Secret scan (GitHub Actions):
+
+- `.github/workflows/secret-scan.yml` runs gitleaks on push/PR.
+
 ## API Endpoints (MVP)
 
 - `POST /v1/tokens` (Bearer Clerk JWT) create PAT
@@ -143,7 +157,7 @@ Direct API example (requires a valid Clerk session JWT):
 curl -X POST http://localhost:8000/v1/tokens \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer CLERK_SESSION_JWT" \
-  -d '{"name":"Extension PAT"}'
+  -d '{"name":"Extension PAT","expires_in_days":90}'
 ```
 
 ### 2) Ingest X payload (extension/PAT)
@@ -253,4 +267,6 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - `/v1/chat` requests strict JSON sections from the LLM, then server-side validates grounding against cited snippets.
 - Unsupported or weakly grounded claims are relabeled as `Unknown / Speculation`.
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
+- PAT auth rejects revoked and expired tokens (`expires_at`).
+- `/health` now returns environment/version metadata and current `request_id`.
 - Thread recaptures dedupe on root tweet identity and increment `capture_version` instead of creating duplicate thread rows.

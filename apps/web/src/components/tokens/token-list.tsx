@@ -24,11 +24,12 @@ function formatDate(value: string | null) {
 }
 
 export function TokenList({ tokens, revokingTokenId, onRevoke }: TokenListProps) {
+  const now = Date.now();
   return (
     <Card>
       <CardHeader>
         <CardTitle>Issued Tokens</CardTitle>
-        <CardDescription>Manage extension access and revoke tokens when needed.</CardDescription>
+        <CardDescription>Manage extension access, token expiry, and revoke credentials when needed.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {tokens.length === 0 ? (
@@ -44,12 +45,25 @@ export function TokenList({ tokens, revokingTokenId, onRevoke }: TokenListProps)
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                     <span>Created: {formatDate(token.created_at)}</span>
                     <span>Last used: {formatDate(token.last_used_at)}</span>
+                    <span>Expires: {formatDate(token.expires_at)}</span>
                   </div>
-                  <Badge variant={token.revoked_at ? "secondary" : "outline"}>
-                    {token.revoked_at ? "Revoked" : "Active"}
+                  <Badge
+                    variant={
+                      token.revoked_at
+                        ? "secondary"
+                        : token.expires_at && new Date(token.expires_at).getTime() <= now
+                          ? "warning"
+                          : "outline"
+                    }
+                  >
+                    {token.revoked_at
+                      ? "Revoked"
+                      : token.expires_at && new Date(token.expires_at).getTime() <= now
+                        ? "Expired"
+                        : "Active"}
                   </Badge>
                 </div>
-                {!token.revoked_at ? (
+                {!token.revoked_at && !(token.expires_at && new Date(token.expires_at).getTime() <= now) ? (
                   <Button
                     type="button"
                     variant="destructive"

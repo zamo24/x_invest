@@ -21,8 +21,12 @@ services:
       context: ../apps/api
       dockerfile: Dockerfile
     environment:
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/copilot
       TOKEN_PEPPER: ${TOKEN_PEPPER:-dev-token-pepper-change-me}
+      PAT_DEFAULT_TTL_DAYS: ${PAT_DEFAULT_TTL_DAYS:-90}
+      PAT_MAX_TTL_DAYS: ${PAT_MAX_TTL_DAYS:-365}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       CORS_ALLOW_ORIGIN_REGEX: ${CORS_ALLOW_ORIGIN_REGEX:-^chrome-extension://[a-z]{32}$}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}

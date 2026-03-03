@@ -15,11 +15,13 @@ type CreatedToken = {
   token: string;
   token_fingerprint: string;
   created_at: string;
+  expires_at: string | null;
 };
 
 export default function TokenSettingsPage() {
   const [tokens, setTokens] = useState<TokenListItem[]>([]);
   const [name, setName] = useState("Extension PAT");
+  const [expiresInDays, setExpiresInDays] = useState(90);
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -47,7 +49,7 @@ export default function TokenSettingsPage() {
       const res = await fetch("/api/tokens", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, expires_in_days: expiresInDays }),
       });
 
       if (!res.ok) {
@@ -106,6 +108,11 @@ export default function TokenSettingsPage() {
             <code className="mt-2 block break-all rounded-md border border-amber-200 bg-amber-100/70 p-2 text-xs text-amber-900">
               {created.token}
             </code>
+            {created.expires_at ? (
+              <p className="mt-2 text-xs text-amber-900">
+                Expires: {new Date(created.expires_at).toLocaleString()}
+              </p>
+            ) : null}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -113,10 +120,19 @@ export default function TokenSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Create New Token</CardTitle>
-          <CardDescription>Use one token per extension installation and revoke as needed.</CardDescription>
+          <CardDescription>
+            Use one token per extension installation, set an expiry window, and rotate/revoke as needed.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <TokenCreateForm name={name} loading={creating} onNameChange={setName} onSubmit={onCreate} />
+          <TokenCreateForm
+            name={name}
+            expiresInDays={expiresInDays}
+            loading={creating}
+            onNameChange={setName}
+            onExpiresInDaysChange={setExpiresInDays}
+            onSubmit={onCreate}
+          />
         </CardContent>
       </Card>
 

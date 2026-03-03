@@ -5,6 +5,8 @@ import uuid
 from dataclasses import dataclass
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -20,6 +22,12 @@ def configure_test_models() -> None:
     os.environ["CHAT_MODEL"] = "local-grounded-v1"
     os.environ["BYOK_ENCRYPTION_KEY"] = "pytest-byok-encryption-secret"
     get_settings.cache_clear()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def upgrade_test_db() -> None:
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
 
 
 @pytest.fixture()

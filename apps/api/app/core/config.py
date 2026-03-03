@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     app_name: str = "X Investor Copilot API"
     app_env: str = "development"
+    app_version: str = Field(default="0.1.0", alias="APP_VERSION")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     database_url: str = Field(
         default="postgresql+psycopg://postgres:postgres@localhost:5432/copilot",
@@ -16,6 +18,8 @@ class Settings(BaseSettings):
     )
 
     token_pepper: str = Field(default="dev-token-pepper-change-me", alias="TOKEN_PEPPER")
+    pat_default_ttl_days: int = Field(default=90, alias="PAT_DEFAULT_TTL_DAYS")
+    pat_max_ttl_days: int = Field(default=365, alias="PAT_MAX_TTL_DAYS")
     cors_allow_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000",
         alias="CORS_ALLOW_ORIGINS",

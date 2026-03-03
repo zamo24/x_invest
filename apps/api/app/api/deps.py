@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.clerk_jwt import verify_clerk_jwt
@@ -46,46 +46,57 @@ def _looks_like_jwt(token: str) -> bool:
 
 
 def get_auth_user(
+    request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> AuthUser:
-    return _resolve_pat_auth(_extract_bearer_token(creds), db)
+    return _resolve_pat_auth(_extract_bearer_token(creds), db, request=request)
 
 
 def get_current_user(auth_user: AuthUser = Depends(get_auth_user)) -> User:
     return auth_user.user
 
 
-def _resolve_pat_auth(token: str, db: Session) -> AuthUser:
+def _resolve_pat_auth(token: str, db: Session, request: Request | None = None) -> AuthUser:
     if not is_well_formed_pat(token):
         raise _unauthorized()
 
     token_hash = hash_token(token, get_settings().token_pepper)
+    now = datetime.now(timezone.utc)
 
     stmt: Select[tuple[ApiToken, User]] = (
         select(ApiToken, User)
         .join(User, User.id == ApiToken.user_id)
-        .where(ApiToken.token_hash == token_hash, ApiToken.revoked_at.is_(None))
+        .where(
+            ApiToken.token_hash == token_hash,
+            ApiToken.revoked_at.is_(None),
+            or_(ApiToken.expires_at.is_(None), ApiToken.expires_at > now),
+        )
     )
     row = db.execute(stmt).first()
     if row is None:
         raise _unauthorized()
 
     token_obj, user = row
-    token_obj.last_used_at = datetime.now(timezone.utc)
+    token_obj.last_used_at = now
     db.add(token_obj)
     db.commit()
     db.refresh(token_obj)
+    if request is not None:
+        request.state.auth_user_id = str(user.id)
 
     return AuthUser(user=user, token=token_obj)
 
 
-def _resolve_clerk_auth(token: str, db: Session) -> AuthUser:
+def _resolve_clerk_auth(token: str, db: Session, request: Request | None = None) -> AuthUser:
     claims: dict[str, Any] = verify_clerk_jwt(token=token, settings=get_settings())
     email_claim = claims.get("email")
     email = email_claim if isinstance(email_claim, str) else None
     identity = ClerkIdentity(clerk_user_id=str(claims["sub"]), email=email)
-    return AuthUser(user=get_or_create_user_for_clerk(identity=identity, db=db))
+    user = get_or_create_user_for_clerk(identity=identity, db=db)
+    if request is not None:
+        request.state.auth_user_id = str(user.id)
+    return AuthUser(user=user)
 
 
 def get_or_create_user_for_clerk(identity: ClerkIdentity, db: Session) -> User:
@@ -106,27 +117,29 @@ def get_or_create_user_for_clerk(identity: ClerkIdentity, db: Session) -> User:
 
 
 def get_current_clerk_user(
+    request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     token = _extract_bearer_token(creds)
-    return _resolve_clerk_auth(token=token, db=db).user
+    return _resolve_clerk_auth(token=token, db=db, request=request).user
 
 
 def get_any_authenticated_user(
+    request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     token = _extract_bearer_token(creds)
 
     try:
-        return _resolve_pat_auth(token, db).user
+        return _resolve_pat_auth(token, db, request=request).user
     except HTTPException:
         if not _looks_like_jwt(token):
             raise _unauthorized("Invalid PAT token.")
 
     try:
-        return _resolve_clerk_auth(token=token, db=db).user
+        return _resolve_clerk_auth(token=token, db=db, request=request).user
     except HTTPException as exc:
         if exc.status_code >= 500:
             raise

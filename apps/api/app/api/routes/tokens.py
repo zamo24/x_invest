@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,13 +22,22 @@ def create_token(
     user: User = Depends(get_current_clerk_user),
 ) -> TokenCreateResponse:
     plaintext = create_plaintext_token()
-    pepper = get_settings().token_pepper
+    settings = get_settings()
+    pepper = settings.token_pepper
+    ttl_days = payload.expires_in_days or settings.pat_default_ttl_days
+    if ttl_days > settings.pat_max_ttl_days:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"expires_in_days cannot exceed {settings.pat_max_ttl_days}",
+        )
+    expires_at = datetime.now(timezone.utc) + timedelta(days=ttl_days)
 
     token = ApiToken(
         user_id=user.id,
-        name=payload.name.strip() or "Default token",
+        name=payload.name,
         token_hash=hash_token(plaintext, pepper),
         token_fingerprint=fingerprint_token(plaintext),
+        expires_at=expires_at,
     )
     db.add(token)
     db.commit()
@@ -40,6 +49,7 @@ def create_token(
         token=plaintext,
         token_fingerprint=token.token_fingerprint,
         created_at=token.created_at,
+        expires_at=token.expires_at,
     )
 
 

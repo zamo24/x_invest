@@ -11,6 +11,7 @@ const badgeVariants = cva(
         default: "border-transparent bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950",
         secondary: "border-transparent bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100",
         destructive: "border-transparent bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200",
+        warning: "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
         outline: "border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200",
       },
     },
