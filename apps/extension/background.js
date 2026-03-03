@@ -56,6 +56,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return;
     }
 
+    if (message?.type === "CHAT_THREADS") {
+      const data = await apiRequest("/v1/chat/threads", { method: "GET" });
+      sendResponse({ ok: true, data });
+      return;
+    }
+
+    if (message?.type === "CHAT_THREAD_DETAIL") {
+      const threadId = message?.payload?.thread_id;
+      if (!threadId) {
+        sendResponse({ ok: false, error: "thread_id is required" });
+        return;
+      }
+      const data = await apiRequest(`/v1/chat/threads/${threadId}`, { method: "GET" });
+      sendResponse({ ok: true, data });
+      return;
+    }
+
     if (message?.type === "LIST_FOLDERS") {
       const data = await apiRequest("/v1/library/folders", { method: "GET" });
       sendResponse({ ok: true, data });

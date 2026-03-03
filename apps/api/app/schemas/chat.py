@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     message: str
     scope: Literal["all", "thread"] = "all"
     thread_id: str | None = None
+    chat_thread_id: UUID | None = None
     provider: Literal["openai"] | None = None
     model: str | None = None
     filters: ChatFilters | None = None
@@ -35,9 +36,36 @@ class CitedSource(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    chat_thread_id: UUID | None = None
     answer_text: str
     cited_sources: list[CitedSource]
     provider_used: Literal["openai"] | None = None
     model_used: str | None = None
     inference_mode_used: Literal["hosted", "byok"] | None = None
     reasoning_effort_used: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
+
+
+class ChatThreadListItem(BaseModel):
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: datetime | None = None
+    message_count: int
+
+
+class ChatMessageItem(BaseModel):
+    id: UUID
+    role: Literal["user", "assistant"]
+    message_text: str
+    cited_sources: list[CitedSource] = Field(default_factory=list)
+    provider_used: Literal["openai"] | None = None
+    model_used: str | None = None
+    inference_mode_used: Literal["hosted", "byok"] | None = None
+    reasoning_effort_used: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
+    created_at: datetime
+
+
+class ChatThreadDetail(BaseModel):
+    thread: ChatThreadListItem
+    messages: list[ChatMessageItem]

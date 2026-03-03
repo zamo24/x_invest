@@ -53,6 +53,32 @@ export type ChatSource = {
   snippet: string;
 };
 
+export type ChatThreadListItem = {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  last_message_at: string | null;
+  message_count: number;
+};
+
+export type ChatMessageItem = {
+  id: string;
+  role: "user" | "assistant";
+  message_text: string;
+  cited_sources: ChatSource[];
+  provider_used: "openai" | null;
+  model_used: string | null;
+  inference_mode_used: "hosted" | "byok" | null;
+  reasoning_effort_used: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | null;
+  created_at: string;
+};
+
+export type ChatThreadDetail = {
+  thread: ChatThreadListItem;
+  messages: ChatMessageItem[];
+};
+
 export type ModelSettings = {
   inference_mode: "hosted" | "byok";
   preferred_provider: "openai";

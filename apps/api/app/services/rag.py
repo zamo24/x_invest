@@ -279,6 +279,15 @@ def _uses_local_chat_model(model: str) -> bool:
 
 
 def _build_chat_user_prompt(question: str, sources: list[CitedSource]) -> str:
+    return _build_chat_user_prompt_with_history(question, sources, history=[])
+
+
+def _build_chat_user_prompt_with_history(
+    question: str,
+    sources: list[CitedSource],
+    *,
+    history: list[tuple[str, str]],
+) -> str:
     source_lines: list[str] = []
     for idx, source in enumerate(sources, start=1):
         source_lines.append(
@@ -294,9 +303,19 @@ def _build_chat_user_prompt(question: str, sources: list[CitedSource]) -> str:
             )
         )
 
+    history_block = "No prior messages."
+    if history:
+        history_lines: list[str] = []
+        for role, text in history[-8:]:
+            role_label = "User" if role == "user" else "Assistant"
+            history_lines.append(f"{role_label}: {text.strip()}")
+        history_block = "\n".join(history_lines)
+
     return "\n\n".join(
         [
-            f"Question:\n{question}",
+            "Conversation context (recent turns):",
+            history_block,
+            f"Current question:\n{question}",
             "Retrieved sources:",
             "\n\n".join(source_lines),
             (
@@ -494,12 +513,13 @@ def _build_openai_answer(
     chat_model: str,
     reasoning_effort: str | None,
     api_key: str | None,
+    history: list[tuple[str, str]],
 ) -> str:
     payload: dict[str, Any] = {
         "model": chat_model,
         "messages": [
             {"role": "system", "content": GROUNDED_ANALYSIS_PROMPT},
-            {"role": "user", "content": _build_chat_user_prompt(question, sources)},
+            {"role": "user", "content": _build_chat_user_prompt_with_history(question, sources, history=history)},
         ],
     }
     # Some newer model families (e.g. gpt-5*) only allow default temperature.
@@ -518,6 +538,7 @@ def build_answer(
     chat_model: str | None = None,
     reasoning_effort: str | None = None,
     api_key: str | None = None,
+    history: list[tuple[str, str]] | None = None,
 ) -> AnswerBundle:
     deduped_sources = _dedupe_sources(chunks)
     if not deduped_sources:
@@ -534,6 +555,7 @@ def build_answer(
         chat_model=resolved_model,
         reasoning_effort=reasoning_effort,
         api_key=api_key,
+        history=history or [],
     )
     structured = _parse_llm_structured_payload(raw_answer)
     if structured is None:

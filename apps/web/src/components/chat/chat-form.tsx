@@ -10,6 +10,7 @@ import type { Folder, LibraryThreadListItem } from "@/lib/types";
 
 type ChatFormProps = {
   message: string;
+  hasActiveChatThread: boolean;
   scope: "all" | "thread";
   threadId: string;
   folderId: string;
@@ -20,6 +21,7 @@ type ChatFormProps = {
   onScopeChange: (value: "all" | "thread") => void;
   onThreadChange: (value: string) => void;
   onFolderChange: (value: string) => void;
+  onStartNewThread: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
@@ -32,6 +34,7 @@ function truncateLabel(value: string, maxLength = 72) {
 
 export function ChatForm({
   message,
+  hasActiveChatThread,
   scope,
   threadId,
   folderId,
@@ -42,13 +45,17 @@ export function ChatForm({
   onScopeChange,
   onThreadChange,
   onFolderChange,
+  onStartNewThread,
   onSubmit,
 }: ChatFormProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Investor Copilot Chat</CardTitle>
-        <CardDescription>Answers are generated from your saved sources only.</CardDescription>
+        <CardDescription>
+          Answers are generated from your saved sources only.
+          {hasActiveChatThread ? " Follow-ups will continue the selected chat thread." : " Your first prompt creates a new thread."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -113,6 +120,9 @@ export function ChatForm({
 
           <Button type="submit" disabled={loading || (scope === "thread" && !threadId)}>
             {loading ? "Running..." : "Ask Copilot"}
+          </Button>
+          <Button type="button" variant="outline" onClick={onStartNewThread}>
+            Start New Chat Thread
           </Button>
         </form>
       </CardContent>

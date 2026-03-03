@@ -7,19 +7,29 @@
       body { font-family: ui-sans-serif, system-ui; margin: 0; background: #f5f8fc; color: #10223a; }
       .wrap { padding: 12px; display: grid; gap: 10px; }
       textarea { width: 100%; min-height: 120px; padding: 10px; }
+      select { width: 100%; padding: 8px; border: 1px solid #d4deea; border-radius: 8px; background: #fff; }
       button { padding: 10px 12px; border: 0; border-radius: 8px; background: #0f8f75; color: #fff; cursor: pointer; }
+      .ghost { background: #e2e8f0; color: #10223a; }
       pre { white-space: pre-wrap; background: #fff; border: 1px solid #d4deea; padding: 10px; border-radius: 8px; }
       ul { margin: 0; padding-left: 18px; }
       a { color: #0f4e9a; }
       .error { color: #b02828; }
+      .history { max-height: 260px; overflow: auto; background: #fff; border: 1px solid #d4deea; border-radius: 8px; padding: 8px; }
+      .history-item { margin-bottom: 8px; }
+      .history-item p { margin: 4px 0 0; font-size: 12px; white-space: pre-wrap; }
+      .history-role { font-size: 11px; text-transform: uppercase; color: #475569; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <h3>Investor Copilot</h3>
+      <select id="chat-thread"></select>
+      <button id="new-thread" class="ghost">Start New Chat Thread</button>
       <textarea id="message">Summarize what I saved about HBM supply and Micron.</textarea>
       <button id="ask">Ask</button>
       <p id="status"></p>
+      <h4>Conversation</h4>
+      <div id="history" class="history"></div>
       <pre id="answer"></pre>
       <h4>Sources</h4>
       <ul id="sources"></ul>
