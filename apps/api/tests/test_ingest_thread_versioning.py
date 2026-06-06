@@ -58,3 +58,7 @@ def test_recapturing_same_thread_bumps_version_instead_of_creating_duplicates(
     threads = [t for t in list_threads.json() if t["id"] == first_json["thread_id"]]
     assert len(threads) == 1
     assert threads[0]["capture_version"] == 2
+
+    thread_detail = client.get(f"/v1/library/threads/{first_json['thread_id']}", headers=headers)
+    assert thread_detail.status_code == 200, thread_detail.text
+    assert thread_detail.json()["items"][0]["text"] == "second capture"

@@ -68,6 +68,16 @@ def _find_existing_thread(
     return None
 
 
+def _tweet_chunk_metadata(item: XItem) -> dict[str, str | None]:
+    return {
+        "tweet_url": item.url,
+        "tweet_id": item.tweet_id,
+        "author_handle": item.author_handle,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "source_type": "x_item",
+    }
+
+
 @router.post("/ingest/x", response_model=IngestXResponse)
 def ingest_x(
     payload: IngestXRequest,
@@ -196,6 +206,10 @@ def ingest_x(
             select(XItem).where(XItem.user_id == user.id, XItem.tweet_id == tweet_id)
         ).scalar_one_or_none()
 
+        captured_at = _ensure_utc(coalesce_capture_time(tw.captured_at)) or datetime.now(timezone.utc)
+        created_at = _ensure_utc(tw.created_at)
+        quoted_json = tw.quoted.model_dump(mode="json") if tw.quoted else None
+
         if item is None:
             item = XItem(
                 user_id=user.id,
@@ -204,19 +218,30 @@ def ingest_x(
                 url=tw.url,
                 author_handle=tw.author_handle,
                 author_name=tw.author_name,
-                created_at=_ensure_utc(tw.created_at),
-                captured_at=_ensure_utc(coalesce_capture_time(tw.captured_at)) or datetime.now(timezone.utc),
+                created_at=created_at,
+                captured_at=captured_at,
                 text=tw.text,
-                quoted_json=tw.quoted.model_dump() if tw.quoted else None,
+                quoted_json=quoted_json,
                 json_raw=tw.json_raw,
                 hash=stable_item_hash(user.id, tweet_id, tw.url, tw.text),
             )
-            db.add(item)
-            db.flush()
             stored_count += 1
-        elif folder_id is not None and item.folder_id != folder_id:
-            item.folder_id = folder_id
-            db.add(item)
+        else:
+            item.url = tw.url
+            item.author_handle = tw.author_handle
+            item.author_name = tw.author_name
+            item.created_at = created_at
+            item.captured_at = captured_at
+            item.text = tw.text
+            item.quoted_json = quoted_json
+            item.json_raw = tw.json_raw
+            if folder_id is not None:
+                item.folder_id = folder_id
+
+        item_text = build_item_chunk_text(item)
+        item.hash = stable_item_hash(user.id, tweet_id, item.url, item_text)
+        db.add(item)
+        db.flush()
 
         item_ids.append(item.id)
         items_for_request.append(item)
@@ -230,29 +255,31 @@ def ingest_x(
             )
         ).scalar_one_or_none()
 
-        if existing_chunk is None:
-            item_text = build_item_chunk_text(item)
+        chunk_metadata = _tweet_chunk_metadata(item)
+        if existing_chunk is None or existing_chunk.chunk_text != item_text:
             try:
                 item_embedding = embed_text(item_text)
             except OpenAIServiceError as exc:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
-            item_chunk = Chunk(
-                user_id=user.id,
-                source_type="x_item",
-                source_id=item.id,
-                chunk_text=item_text,
-                chunk_order=0,
-                embedding=item_embedding,
-                metadata_json={
-                    "tweet_url": item.url,
-                    "tweet_id": item.tweet_id,
-                    "author_handle": item.author_handle,
-                    "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "source_type": "x_item",
-                },
-            )
-            db.add(item_chunk)
+            if existing_chunk is None:
+                existing_chunk = Chunk(
+                    user_id=user.id,
+                    source_type="x_item",
+                    source_id=item.id,
+                    chunk_text=item_text,
+                    chunk_order=0,
+                    embedding=item_embedding,
+                    metadata_json=chunk_metadata,
+                )
+            else:
+                existing_chunk.chunk_text = item_text
+                existing_chunk.embedding = item_embedding
+                existing_chunk.metadata_json = chunk_metadata
+            db.add(existing_chunk)
+        elif existing_chunk.metadata_json != chunk_metadata:
+            existing_chunk.metadata_json = chunk_metadata
+            db.add(existing_chunk)
 
     thread_id = None
     thread_version = None
