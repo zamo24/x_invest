@@ -6,6 +6,7 @@ import type { TokenListItem } from "@/lib/types";
 
 type TokenListProps = {
   tokens: TokenListItem[];
+  referenceTime: number | null;
   revokingTokenId: string | null;
   onRevoke: (tokenId: string) => void;
 };
@@ -23,8 +24,8 @@ function formatDate(value: string | null) {
   return asDate.toLocaleString();
 }
 
-export function TokenList({ tokens, revokingTokenId, onRevoke }: TokenListProps) {
-  const now = Date.now();
+export function TokenList({ tokens, referenceTime, revokingTokenId, onRevoke }: TokenListProps) {
+  const now = referenceTime ?? 0;
   return (
     <Card>
       <CardHeader>

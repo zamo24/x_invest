@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatForm } from "@/components/chat/chat-form";
 import { ChatHistory } from "@/components/chat/chat-history";
@@ -14,6 +14,17 @@ type ChatResultPayload = {
 };
 
 const THREAD_PAGE_SIZE = 12;
+
+async function fetchChatThreadsPage(offset: number): Promise<ChatThreadListItem[] | null> {
+  const chatThreadsRes = await fetch(`/api/chat/threads?limit=${THREAD_PAGE_SIZE}&offset=${offset}`, {
+    cache: "no-store",
+  });
+  if (!chatThreadsRes.ok) {
+    return null;
+  }
+
+  return (await chatThreadsRes.json()) as ChatThreadListItem[];
+}
 
 function buildOptimisticUserMessage(text: string): ChatMessageItem {
   return {
@@ -60,35 +71,35 @@ export default function ChatPage() {
     });
   }
 
-  async function loadChatThreads(offset = chatThreadOffset, preferredThreadId?: string) {
-    const chatThreadsRes = await fetch(`/api/chat/threads?limit=${THREAD_PAGE_SIZE}&offset=${offset}`, {
-      cache: "no-store",
-    });
-    if (!chatThreadsRes.ok) {
-      return;
-    }
+  const loadChatThreads = useCallback(
+    async (offset: number, preferredThreadId?: string) => {
+      const payload = await fetchChatThreadsPage(offset);
+      if (!payload) {
+        return;
+      }
 
-    const payload = (await chatThreadsRes.json()) as ChatThreadListItem[];
-    setChatThreads(payload);
-    setHasMoreChatThreads(payload.length === THREAD_PAGE_SIZE);
+      setChatThreads(payload);
+      setHasMoreChatThreads(payload.length === THREAD_PAGE_SIZE);
 
-    const preferred = preferredThreadId ?? chatThreadId;
-    if (payload.length === 0) {
-      setChatThreadId("");
-      return;
-    }
+      const preferred = preferredThreadId ?? chatThreadId;
+      if (payload.length === 0) {
+        setChatThreadId("");
+        return;
+      }
 
-    if (preferred && payload.some((thread) => thread.id === preferred)) {
-      setChatThreadId(preferred);
-      return;
-    }
+      if (preferred && payload.some((thread) => thread.id === preferred)) {
+        setChatThreadId(preferred);
+        return;
+      }
 
-    if (!chatThreadId) {
-      setChatThreadId(payload[0].id);
-    }
-  }
+      if (!chatThreadId) {
+        setChatThreadId(payload[0].id);
+      }
+    },
+    [chatThreadId],
+  );
 
-  async function loadChatThreadDetail(activeThreadId: string): Promise<ChatThreadDetail | null> {
+  const loadChatThreadDetail = useCallback(async (activeThreadId: string): Promise<ChatThreadDetail | null> => {
     if (!activeThreadId) {
       setChatMessages([]);
       return null;
@@ -102,13 +113,14 @@ export default function ChatPage() {
     const payload = (await detailRes.json()) as ChatThreadDetail;
     setChatMessages(payload.messages);
     return payload;
-  }
+  }, []);
 
   useEffect(() => {
     async function loadData() {
-      const [threadsRes, foldersRes] = await Promise.all([
+      const [threadsRes, foldersRes, chatThreadPayload] = await Promise.all([
         fetch("/api/library/threads", { cache: "no-store" }),
         fetch("/api/library/folders", { cache: "no-store" }),
+        fetchChatThreadsPage(0),
       ]);
 
       if (threadsRes.ok) {
@@ -117,7 +129,15 @@ export default function ChatPage() {
       if (foldersRes.ok) {
         setFolders((await foldersRes.json()) as Folder[]);
       }
-      await loadChatThreads(0);
+      if (!chatThreadPayload) {
+        return;
+      }
+
+      setChatThreads(chatThreadPayload);
+      setHasMoreChatThreads(chatThreadPayload.length === THREAD_PAGE_SIZE);
+      if (chatThreadPayload.length > 0) {
+        setChatThreadId(chatThreadPayload[0].id);
+      }
     }
 
     void loadData().catch(() => undefined);
@@ -125,7 +145,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     void loadChatThreadDetail(chatThreadId);
-  }, [chatThreadId]);
+  }, [chatThreadId, loadChatThreadDetail]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

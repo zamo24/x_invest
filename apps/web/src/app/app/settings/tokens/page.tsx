@@ -26,6 +26,7 @@ export default function TokenSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [revokingTokenId, setRevokingTokenId] = useState<string | null>(null);
+  const [referenceTime, setReferenceTime] = useState<number | null>(null);
 
   async function loadTokens() {
     const res = await fetch("/api/tokens", { cache: "no-store" });
@@ -34,6 +35,7 @@ export default function TokenSettingsPage() {
     }
 
     setTokens((await res.json()) as TokenListItem[]);
+    setReferenceTime(Date.now());
   }
 
   useEffect(() => {
@@ -136,7 +138,7 @@ export default function TokenSettingsPage() {
         </CardContent>
       </Card>
 
-      <TokenList tokens={tokens} revokingTokenId={revokingTokenId} onRevoke={onRevoke} />
+      <TokenList tokens={tokens} referenceTime={referenceTime} revokingTokenId={revokingTokenId} onRevoke={onRevoke} />
     </section>
   );
 }
