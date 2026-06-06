@@ -101,7 +101,7 @@ async function mockDashboardApi(page: Page) {
           id: "msg-assistant",
           role: "assistant",
           message_text:
-            "Executive Summary: HBM supply remains tight but packaging capacity is improving. (source: https://x.com/semicapital/status/100)\n\nFacts: HBM demand still exceeds supply. (source: https://x.com/semicapital/status/100)",
+            "Your saved source suggests HBM supply remains tight, although packaging capacity is improving.",
           cited_sources: [
             {
               tweet_url: "https://x.com/semicapital/status/100",
@@ -121,7 +121,7 @@ async function mockDashboardApi(page: Page) {
       await route.fulfill({
         json: {
           chat_thread_id: "chat-hbm",
-          answer_text: "Executive Summary: HBM supply remains tight.",
+          answer_text: "Your saved source suggests HBM supply remains tight.",
           cited_sources: [
             {
               tweet_url: "https://x.com/semicapital/status/100",
@@ -180,6 +180,8 @@ test("chat dashboard sends a question and renders persisted cited response", asy
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(page.getByText("Summarize the HBM supply view").first()).toBeVisible();
-  await expect(page.getByText("HBM supply remains tight but packaging capacity is improving")).toBeVisible();
+  await expect(
+    page.getByText("Your saved source suggests HBM supply remains tight, although packaging capacity is improving."),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "https://x.com/semicapital/status/100" }).first()).toBeVisible();
 });

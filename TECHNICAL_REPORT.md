@@ -159,7 +159,7 @@ Generation modes:
 - Local mode returns a deterministic grounded answer from retrieved snippets.
 - Hosted/BYOK mode calls OpenAI chat completions.
 
-The OpenAI path asks for strict JSON sections, parses the response, validates citations against retrieved source URLs, and relabels unsupported claims as `Unknown / Speculation`.
+The OpenAI path asks for a natural conversational answer plus an internal list of source-grounded claims. The API validates those claims against retrieved source URLs and snippets, returns only validated cited sources, and falls back to a conservative local response when validation fails. Hosted models can also continue ordinary conversation when no saved source is relevant.
 
 ## 8. Web App
 

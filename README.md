@@ -278,8 +278,8 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - DB extension init: `infra/db/init.sql` includes `CREATE EXTENSION IF NOT EXISTS vector;`
 - If `EMBEDDING_MODEL`/`CHAT_MODEL` are set to `local-*`, API uses local deterministic fallback logic.
 - If non-local models are configured, API calls OpenAI (`/v1/embeddings` and `/v1/chat/completions`).
-- `/v1/chat` retrieves pgvector candidates, reranks them with lexical and recency signals, requests strict JSON sections from the LLM, then server-side validates grounding against cited snippets.
-- Unsupported or weakly grounded claims are relabeled as `Unknown / Speculation`.
+- `/v1/chat` retrieves pgvector candidates, reranks them with lexical and recency signals, and asks the LLM for a natural conversational answer plus internal source-grounded claims.
+- The API validates source-grounded claims against cited snippets and falls back to a conservative local response when validation fails.
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
 - PAT auth rejects revoked and expired tokens (`expires_at`).
 - `/health` now returns environment/version metadata and current `request_id`.

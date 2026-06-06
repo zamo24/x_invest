@@ -10,20 +10,6 @@ type ChatHistoryProps = {
 };
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
-const ANALYSIS_SECTION_TITLES = new Set([
-  "Executive Summary",
-  "Facts",
-  "Opinions",
-  "Forecasts",
-  "Bull Case",
-  "Bear Case",
-  "Uncertainties",
-]);
-
-type ParsedSection = {
-  title: string;
-  points: string[];
-};
 
 function formatDate(value: string) {
   const asDate = new Date(value);
@@ -57,50 +43,6 @@ function renderTextWithLinks(text: string) {
   });
 }
 
-function splitSectionPoints(body: string): string[] {
-  const normalized = body.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return [];
-  }
-
-  const primary = normalized.split(/(?<=\))\s+(?=(?:Unknown \/ Speculation:|[A-Z]))/g).filter(Boolean);
-  if (primary.length > 1) {
-    return primary;
-  }
-
-  const fallback = normalized.split(/(?<=\.)\s+(?=Unknown \/ Speculation:)/g).filter(Boolean);
-  if (fallback.length > 1) {
-    return fallback;
-  }
-
-  return [normalized];
-}
-
-function parseAssistantSections(text: string): ParsedSection[] | null {
-  const chunks = text
-    .split(/\n\s*\n/g)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
-
-  const sections: ParsedSection[] = [];
-  for (const chunk of chunks) {
-    const match = chunk.match(/^([^:\n]{2,40}):\s*([\s\S]*)$/);
-    if (!match) {
-      continue;
-    }
-    const title = match[1].trim();
-    if (!ANALYSIS_SECTION_TITLES.has(title)) {
-      continue;
-    }
-    sections.push({
-      title,
-      points: splitSectionPoints(match[2].trim()),
-    });
-  }
-
-  return sections.length >= 2 ? sections : null;
-}
-
 export function ChatHistory({ messages, loading }: ChatHistoryProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,7 +60,6 @@ export function ChatHistory({ messages, loading }: ChatHistoryProps) {
         <div className="mx-auto flex max-w-3xl flex-col gap-5">
           {messages.map((message) => {
             const isUser = message.role === "user";
-            const structuredSections = !isUser ? parseAssistantSections(message.message_text) : null;
             return (
               <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <div
@@ -128,24 +69,7 @@ export function ChatHistory({ messages, loading }: ChatHistoryProps) {
                       : "max-w-[90%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                   }
                 >
-                  {structuredSections ? (
-                    <div className="space-y-3">
-                      {structuredSections.map((section) => (
-                        <section key={`${message.id}-${section.title}`} className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
-                            {section.title}
-                          </p>
-                          <ul className="list-disc space-y-1 pl-5">
-                            {section.points.map((point, index) => (
-                              <li key={`${message.id}-${section.title}-${index}`}>{renderTextWithLinks(point)}</li>
-                            ))}
-                          </ul>
-                        </section>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="whitespace-pre-wrap">{renderTextWithLinks(message.message_text)}</div>
-                  )}
+                  <div className="whitespace-pre-wrap">{renderTextWithLinks(message.message_text)}</div>
                   <div className={isUser ? "mt-2 text-right text-[11px] text-emerald-100" : "mt-2 text-[11px] text-slate-500"}>
                     {formatDate(message.created_at)}
                   </div>

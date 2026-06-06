@@ -103,7 +103,17 @@ def test_chat_uses_byok_api_key_when_enabled(
             "choices": [
                 {
                     "message": {
-                        "content": "Facts:\n- HBM pricing momentum cited.\nOpinions:\n- Unknown / Speculation.\nForecasts:\n- Unknown / Speculation.\nBull Case:\n- Unknown / Speculation.\nBear Case:\n- Unknown / Speculation.\nUncertainties:\n- Unknown / Speculation."
+                        "content": json.dumps(
+                            {
+                                "answer": "Your saved source describes strong HBM pricing momentum into next quarter.",
+                                "grounded_claims": [
+                                    {
+                                        "claim": "strong HBM pricing momentum into next quarter",
+                                        "citations": [ingest_payload["root_tweet_url"]],
+                                    }
+                                ],
+                            }
+                        )
                     }
                 }
             ]
@@ -125,7 +135,7 @@ def test_chat_uses_byok_api_key_when_enabled(
     assert observed["payload"]["reasoning_effort"] == "high"
 
 
-def test_chat_structured_output_enforces_grounded_citations(
+def test_chat_conversational_output_validates_grounded_citations(
     client: TestClient,
     auth_context: Any,
     monkeypatch: Any,
@@ -157,16 +167,10 @@ def test_chat_structured_output_enforces_grounded_citations(
     assert ingest.status_code == 200, ingest.text
 
     payload_obj = {
-        "facts": [
-            {"claim": "HBM capacity remains constrained in 2026.", "citations": [tweet_url]},
-            {"claim": "Photonics demand already doubled this quarter.", "citations": [tweet_url]},
-            {"claim": "Micron announced a new fab in Austin.", "citations": ["https://x.com/unknown/status/1"]},
+        "answer": "The clearest takeaway from your saved source is that HBM capacity remains constrained in 2026.",
+        "grounded_claims": [
+            {"claim": "HBM capacity remains constrained in 2026", "citations": [tweet_url]},
         ],
-        "opinions": [],
-        "forecasts": [],
-        "bull_case": [],
-        "bear_case": [],
-        "uncertainties": [],
     }
 
     def fake_call_openai_json(path: str, payload: dict[str, Any], *, api_key: str | None = None) -> dict[str, Any]:
@@ -180,7 +184,156 @@ def test_chat_structured_output_enforces_grounded_citations(
         json={"message": "Summarize", "scope": "all", "top_k": 4, "model": "gpt-4o-mini"},
     )
     assert chat_response.status_code == 200, chat_response.text
-    answer_text = chat_response.json()["answer_text"]
-    assert "HBM capacity remains constrained in 2026. (source: " in answer_text
-    assert "Unknown / Speculation: Photonics demand already doubled this quarter." in answer_text
-    assert "Unknown / Speculation: Micron announced a new fab in Austin." in answer_text
+    payload = chat_response.json()
+    assert payload["answer_text"] == payload_obj["answer"]
+    assert [source["tweet_url"] for source in payload["cited_sources"]] == [tweet_url]
+
+
+def test_chat_rejects_unsupported_grounded_claim(
+    client: TestClient,
+    auth_context: Any,
+    monkeypatch: Any,
+) -> None:
+    headers = {"Authorization": f"Bearer {auth_context.pat}"}
+
+    tweet_id = f"pytest_reject_{uuid4().hex[:12]}"
+    tweet_url = f"https://x.com/test/status/{tweet_id}"
+    ingest = client.post(
+        "/v1/ingest/x",
+        headers=headers,
+        json={
+            "capture_type": "tweet",
+            "page_url": tweet_url,
+            "root_tweet_id": tweet_id,
+            "root_tweet_url": tweet_url,
+            "tweets": [
+                {
+                    "tweet_id": tweet_id,
+                    "url": tweet_url,
+                    "author_handle": "groundtester",
+                    "author_name": "Ground Tester",
+                    "created_at": _iso_now(),
+                    "text": "HBM capacity remains constrained in 2026.",
+                    "captured_at": _iso_now(),
+                }
+            ],
+            "captured_count": 1,
+            "is_partial": False,
+        },
+    )
+    assert ingest.status_code == 200, ingest.text
+
+    def fake_call_openai_json(path: str, payload: dict[str, Any], *, api_key: str | None = None) -> dict[str, Any]:
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "answer": "Photonics demand already doubled this quarter.",
+                                "grounded_claims": [
+                                    {
+                                        "claim": "Photonics demand already doubled this quarter.",
+                                        "citations": [tweet_url],
+                                    }
+                                ],
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr("app.services.rag.call_openai_json", fake_call_openai_json)
+
+    chat_response = client.post(
+        "/v1/chat",
+        headers=headers,
+        json={"message": "What does my source say?", "scope": "all", "top_k": 4, "model": "gpt-4o-mini"},
+    )
+    assert chat_response.status_code == 200, chat_response.text
+    payload = chat_response.json()
+    assert "Photonics demand already doubled" not in payload["answer_text"]
+    assert "Based on the relevant items in your saved X library" in payload["answer_text"]
+    assert [source["tweet_url"] for source in payload["cited_sources"]] == [tweet_url]
+
+
+def test_hosted_chat_can_converse_without_retrieved_sources(
+    client: TestClient,
+    auth_context: Any,
+    monkeypatch: Any,
+) -> None:
+    headers = {"Authorization": f"Bearer {auth_context.pat}"}
+    observed: dict[str, Any] = {}
+
+    def fake_call_openai_json(path: str, payload: dict[str, Any], *, api_key: str | None = None) -> dict[str, Any]:
+        observed["payload"] = payload
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "answer": "Hi. I'm your Investor Copilot. What are you researching today?",
+                                "grounded_claims": [],
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr("app.services.rag.call_openai_json", fake_call_openai_json)
+
+    chat_response = client.post(
+        "/v1/chat",
+        headers=headers,
+        json={"message": "Hi", "scope": "all", "top_k": 4, "model": "gpt-4o-mini"},
+    )
+    assert chat_response.status_code == 200, chat_response.text
+    payload = chat_response.json()
+    assert payload["answer_text"] == "Hi. I'm your Investor Copilot. What are you researching today?"
+    assert payload["cited_sources"] == []
+    assert "No relevant saved X sources were retrieved." in observed["payload"]["messages"][1]["content"]
+    assert "Do not force" in observed["payload"]["messages"][0]["content"]
+
+
+def test_local_casual_chat_ignores_retrieved_sources(client: TestClient, auth_context: Any) -> None:
+    headers = {"Authorization": f"Bearer {auth_context.pat}"}
+    tweet_id = f"pytest_casual_{uuid4().hex[:12]}"
+    tweet_url = f"https://x.com/test/status/{tweet_id}"
+
+    ingest = client.post(
+        "/v1/ingest/x",
+        headers=headers,
+        json={
+            "capture_type": "tweet",
+            "page_url": tweet_url,
+            "root_tweet_id": tweet_id,
+            "root_tweet_url": tweet_url,
+            "tweets": [
+                {
+                    "tweet_id": tweet_id,
+                    "url": tweet_url,
+                    "author_handle": "casualtester",
+                    "author_name": "Casual Tester",
+                    "created_at": _iso_now(),
+                    "text": "HBM capacity remains constrained in 2026.",
+                    "captured_at": _iso_now(),
+                }
+            ],
+            "captured_count": 1,
+            "is_partial": False,
+        },
+    )
+    assert ingest.status_code == 200, ingest.text
+
+    chat_response = client.post(
+        "/v1/chat",
+        headers=headers,
+        json={"message": "Hey there", "scope": "all", "top_k": 4},
+    )
+    assert chat_response.status_code == 200, chat_response.text
+    payload = chat_response.json()
+    assert payload["answer_text"].startswith("I'm your Investor Copilot.")
+    assert payload["cited_sources"] == []

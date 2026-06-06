@@ -85,6 +85,21 @@ def test_chat_creates_and_persists_thread_history(client: TestClient, auth_conte
     assert messages[2]["message_text"] == "Follow-up question"
 
 
+def test_local_chat_uses_conversational_fallback(client: TestClient, auth_context: Any) -> None:
+    headers = {"Authorization": f"Bearer {auth_context.pat}"}
+
+    response = client.post(
+        "/v1/chat",
+        headers=headers,
+        json={"message": "Hi", "scope": "all", "top_k": 4},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["answer_text"].startswith("I'm your Investor Copilot.")
+    assert "Executive Summary" not in payload["answer_text"]
+    assert payload["cited_sources"] == []
+
+
 def test_chat_thread_endpoints_enforce_user_ownership(client: TestClient, auth_context: Any) -> None:
     owner_headers = {"Authorization": f"Bearer {auth_context.pat}"}
 
