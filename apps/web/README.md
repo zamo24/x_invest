@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# X Investor Copilot Web App
 
-## Getting Started
+Next.js App Router dashboard for the X Investor Copilot MVP.
 
-First, run the development server:
+## Responsibilities
+
+- Protect dashboard routes under `/app/*` with Clerk middleware.
+- Forward Clerk session JWTs to the FastAPI API through route handlers in `src/app/api/*`.
+- Provide library, folder, chat, model settings, and API token management UI.
+- Render persisted chat threads with source citations returned by the API.
+
+## Local Development
+
+From the repository root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm -C apps/web dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Docker compose flow is usually preferred because the web app expects the API at `API_BASE_URL`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose up --build web
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Important environment variables:
 
-## Learn More
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `CLERK_JWT_TEMPLATE` when using a custom Clerk JWT template
+- `API_BASE_URL` for server-side API proxy calls
+- `NEXT_PUBLIC_API_BASE_URL` for extension/onboarding copy
 
-To learn more about Next.js, take a look at the following resources:
+If Clerk keys are omitted, the app keeps a local build-friendly fallback for public pages, but authenticated dashboard workflows require Clerk.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Validation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm -C apps/web lint
+pnpm -C apps/web build
+pnpm -C apps/web test:e2e:list
+```
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run Playwright browser tests with a web server available at `PLAYWRIGHT_BASE_URL` or `http://localhost:3000`.

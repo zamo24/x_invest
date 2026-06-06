@@ -35,12 +35,19 @@ services:
       CLERK_ISSUER: ${CLERK_ISSUER:-}
       CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
       CLERK_AUDIENCE: ${CLERK_AUDIENCE:-}
+      CLERK_JWT_LEEWAY_SECONDS: ${CLERK_JWT_LEEWAY_SECONDS:-30}
       LLM_API_KEY: ${LLM_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-30}
+      EMBEDDING_MAX_TOKENS: ${EMBEDDING_MAX_TOKENS:-6000}
+      EMBEDDING_MAX_CHARS: ${EMBEDDING_MAX_CHARS:-24000}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-local-hash-v1}
       CHAT_MODEL: ${CHAT_MODEL:-local-grounded-v1}
+      HOSTED_CHAT_PROVIDER: ${HOSTED_CHAT_PROVIDER:-openai}
+      HOSTED_CHAT_MODELS: ${HOSTED_CHAT_MODELS:-gpt-4o-mini,gpt-4.1-mini,gpt-5-mini,gpt-5.2}
+      BYOK_ENCRYPTION_KEY: ${BYOK_ENCRYPTION_KEY:-dev-byok-encryption-key-change-me}
       EMBEDDING_DIM: ${EMBEDDING_DIM:-256}
     command: /bin/sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
@@ -58,6 +65,7 @@ services:
       NODE_ENV: development
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      CLERK_JWT_TEMPLATE: ${CLERK_JWT_TEMPLATE:-}
       API_BASE_URL: http://api:8000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
       WATCHPACK_POLLING: "true"

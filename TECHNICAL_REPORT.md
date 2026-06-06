@@ -7,338 +7,253 @@ Primary references:
 - `README.md`
 - `docker-compose.yml`
 - `infra/docker-compose.yml`
+- `apps/api/app`
+- `apps/web/src`
+- `apps/extension`
 
 ## 1. System Overview
 
-This is a monorepo MVP implementing a B2C "save from X + chat over saved corpus" workflow with three runtime components:
+This monorepo implements a B2C "save from X + chat over saved corpus" MVP with three runtime components:
 
-1. `apps/api` (FastAPI + Postgres + pgvector)
-2. `apps/web` (Next.js App Router + Clerk auth + dashboard)
-3. `apps/extension` (Chrome MV3 extension for capture + side panel chat)
+1. `apps/api` - FastAPI, SQLAlchemy, Alembic, Postgres, and pgvector.
+2. `apps/web` - Next.js App Router dashboard with Clerk auth and API proxy routes.
+3. `apps/extension` - Chrome Manifest V3 extension for X capture and side-panel chat.
 
-The architecture is intentionally simple:
-- Postgres is both system-of-record and vector store.
-- Ingestion and embedding are synchronous during request handling.
-- Extension authentication uses PAT.
-- Web authentication uses Clerk; web server forwards Clerk identity headers to API.
+The architecture remains deliberately compact:
+
+- Postgres is the system of record and vector store.
+- Ingestion, chunking, embedding, and DB writes are synchronous.
+- Extension authentication uses PATs.
+- Web authentication uses Clerk session JWTs forwarded to the API.
+- The API verifies Clerk JWTs directly with Clerk JWKS.
 
 ## 2. Core Design Decisions
 
-### Decision A: Separate auth planes (Clerk for web, PAT for extension)
-- Implemented in API deps and web forwarding:
-  - `apps/api/app/api/deps.py`
-  - `apps/web/src/lib/server-api.ts`
-- Why: low-friction extension auth for MVP while preserving standard web auth UX.
-- Tradeoff: dual auth model increases complexity and introduces trust-boundary issues.
+### Separate Auth Planes
 
-### Decision B: Postgres + pgvector as single backend store
-- `apps/api/app/db/models.py`
-- `infra/db/init.sql`
-- Why: minimal infra and strong transactional semantics across metadata + vectors.
-- Tradeoff: retrieval performance tuning and horizontal scale are deferred.
+- Extension requests use PATs (`xic_pat_...`) stored as HMAC-SHA256 hashes with `TOKEN_PEPPER`.
+- Web requests use Clerk session JWTs, verified in `apps/api/app/core/clerk_jwt.py`.
+- Shared user-owned APIs accept either auth type through `get_any_authenticated_user`.
 
-### Decision C: Deterministic local embeddings instead of provider embeddings
-- `apps/api/app/services/embeddings.py`
-- Why: zero external dependency/cost for MVP.
-- Tradeoff: retrieval quality is materially lower than semantic embeddings.
+This keeps extension setup simple while avoiding the old header-trust shortcut for web identity.
 
-### Decision D: DOM-only, user-initiated capture in extension
-- `apps/extension/content-script.js`
-- Why: explicit compliance with no background crawling / no interception.
-- Tradeoff: capture completeness depends on what is currently rendered and expanded.
+### Postgres And pgvector
 
-### Decision E: Source-grounded response format with explicit Unknown / Speculation fallback
-- `apps/api/app/services/rag.py`
-- `apps/api/app/services/prompts.py`
-- Why: enforce attribution and reduce hallucination risk.
-- Tradeoff: response quality is heuristic (no real LLM synthesis currently).
+The database stores users, PATs, folders, X items, X threads, chunks, model settings, and chat history. Vector retrieval uses pgvector cosine distance over `chunks.embedding`.
 
-## 3. Monorepo and Runtime Topology
+### Local Defaults With Hosted Model Paths
 
-Top-level workspace config:
-- `pnpm-workspace.yaml`
+The default local dev path uses deterministic local embeddings and a local rule-based answer builder:
+
+- `EMBEDDING_MODEL=local-hash-v1`
+- `CHAT_MODEL=local-grounded-v1`
+
+Hosted OpenAI paths are implemented for embeddings and chat completions when non-local models and keys are configured. Per-user BYOK OpenAI keys are encrypted before storage.
+
+### DOM-Only X Capture
+
+The extension only captures user-visible DOM content after explicit user action. It does not crawl, intercept traffic, or run background scraping.
+
+## 3. Runtime Topology
+
+Top-level workspace:
+
 - `package.json`
+- `pnpm-workspace.yaml`
 
-Compose runtime:
+Compose files:
+
 - `docker-compose.yml`
+- `infra/docker-compose.yml`
 
 Runtime graph:
-1. `db` uses `pgvector/pgvector:pg16`
-2. `api` depends on `db` healthcheck and runs migrations before serving
-3. `web` depends on `api`
-4. Extension calls `api` directly (localhost) and does not go through `web`
 
-## 4. Backend Deep Dive (FastAPI)
+1. `db` starts `pgvector/pgvector:pg16`.
+2. `api` waits for DB health, runs Alembic migrations, then starts Uvicorn.
+3. `web` starts Next.js dev mode and proxies dashboard API calls to `api`.
+4. The browser extension calls `api` directly with a PAT.
 
-Primary entry:
+## 4. Backend
+
+Primary files:
+
 - `apps/api/app/main.py`
-- `apps/api/app/api/__init__.py`
-
-Configuration:
-- `apps/api/app/core/config.py`
-
-Database session:
-- `apps/api/app/db/session.py`
-
-Libraries used:
-- FastAPI / Starlette
-- SQLAlchemy 2.x
-- Alembic
-- psycopg3
-- pgvector SQLAlchemy integration
-- pydantic-settings
-
-## 5. API Authentication and Identity Control Flow
-
-### PAT auth path
-1. Parse `Authorization: Bearer ...`
-2. HMAC-hash token with `TOKEN_PEPPER`
-3. Join `api_tokens -> users`
-4. Reject if missing/revoked
-5. Update `last_used_at`
-
-Code:
 - `apps/api/app/api/deps.py`
-- `apps/api/app/core/security.py`
-
-### Clerk-header auth path
-1. Read `x-clerk-user-id` and optional email
-2. Upsert `users` by `clerk_user_id`
-
-Code:
-- `apps/api/app/api/deps.py`
-
-Important behavior:
-- `/v1/chat` and `/v1/library/*` accept PAT or Clerk headers (`get_any_authenticated_user`).
-- `/v1/tokens` uses Clerk-header auth (`get_current_clerk_user`).
-
-## 6. Database Design
-
-Models:
+- `apps/api/app/api/routes/*.py`
+- `apps/api/app/services/*.py`
 - `apps/api/app/db/models.py`
-- Migration: `apps/api/alembic/versions/20260227_0001_init_schema.py`
 
-Tables and intent:
+Implemented API surface:
 
-1. `users`
-- Canonical user identity, keyed by UUID.
-- `clerk_user_id` unique index.
+- `GET /health`
+- `POST /v1/tokens`
+- `GET /v1/tokens`
+- `DELETE /v1/tokens/{id}`
+- `POST /v1/ingest/x`
+- `POST /v1/chat`
+- `GET /v1/chat/threads`
+- `GET /v1/chat/threads/{id}`
+- `PATCH /v1/chat/threads/{id}`
+- `DELETE /v1/chat/threads/{id}`
+- `GET /v1/model-settings`
+- `PUT /v1/model-settings`
+- `GET /v1/library/items`
+- `GET /v1/library/threads`
+- `GET /v1/library/threads/{id}`
+- `GET /v1/library/folders`
+- `POST /v1/library/folders`
+- `DELETE /v1/library/folders/{id}`
+- `PATCH /v1/library/items/{id}/folder`
+- `PATCH /v1/library/threads/{id}/folder`
 
-2. `api_tokens`
-- PAT registry, stores `token_hash`, not plaintext.
-- `token_fingerprint` for display.
-- revocation and last-used metadata.
+## 5. Database Design
 
-3. `x_items`
-- Atomic tweet capture units.
-- Unique `(user_id, tweet_id)` dedupe boundary.
-- JSON fields for quoted/raw payload preservation.
+Current model set:
 
-4. `x_threads`
-- Thread-level capture metadata.
-- Includes partial-capture flags.
+- `users`
+- `api_tokens`
+- `user_model_settings`
+- `x_folders`
+- `x_items`
+- `x_threads`
+- `x_thread_items`
+- `chunks`
+- `chat_threads`
+- `chat_messages`
 
-5. `x_thread_items`
-- Junction table for thread->item mapping.
+Migration sequence:
 
-6. `chunks`
-- Vector-searchable chunk records.
-- `source_type` in practice: `x_item` or `x_thread`.
-- `embedding` vector(256), `metadata_json` stores citation metadata.
+1. Initial users/PAT/X item/thread/chunk schema.
+2. Thread dedupe/versioning support.
+3. Folder organization.
+4. User model settings and BYOK metadata.
+5. Reasoning effort.
+6. API token expiry.
+7. Persisted chat threads and messages.
 
-Critical indexing choices:
-- `users.clerk_user_id` unique
-- `api_tokens.token_hash` unique
-- `x_items(user_id, tweet_id)` unique
-- `chunks` indexed by `user_id`, `source_type`, `source_id`
+## 6. Ingest And Retrieval
 
-## 7. Endpoint Behavior and Control Flow
+`POST /v1/ingest/x` supports:
 
-Route files:
-- `apps/api/app/api/routes/tokens.py`
-- `apps/api/app/api/routes/ingest.py`
-- `apps/api/app/api/routes/chat.py`
-- `apps/api/app/api/routes/library.py`
+- Single tweet capture.
+- Thread capture with recapture versioning.
+- X article capture with long-content chunking.
+- Optional folder assignment.
 
-### Token lifecycle
-1. `POST /v1/tokens` creates plaintext token once and stores hash.
-2. `GET /v1/tokens` lists active/revoked token metadata.
-3. `DELETE /v1/tokens/{id}` sets `revoked_at`.
+The API creates `x_item` chunks for tweets/articles and `x_thread` macro chunks for threads. Article chunks are split into multiple body chunks for long-form content.
 
-### Ingest lifecycle (`POST /v1/ingest/x`)
-1. Request-level dedupe by tweet_id set.
-2. Normalize tweet id from payload or URL.
-3. Upsert `x_items` by `(user_id, tweet_id)`.
-4. Create one per-item chunk if not already present.
-5. If capture_type=`thread`:
-   - create `x_threads` row
-   - link items via `x_thread_items`
-   - create one macro thread chunk
-6. Commit once at end.
+Retrieval:
 
-### Chat lifecycle (`POST /v1/chat`)
-1. Authenticate user.
-2. Embed query text via local deterministic embedding.
-3. Retrieve nearest chunks by cosine distance.
-4. Apply optional filters and optional thread scope.
-5. Build structured answer + citations with heuristic categorization.
+- Embeds the query.
+- Searches `chunks` with pgvector cosine distance.
+- Oversamples before metadata filtering.
+- Supports author/date/folder filters and single saved-thread scope.
 
-### Library reads
-- List items
-- List threads with aggregate `item_count`
-- Thread detail with ordered items
+## 7. Chat Generation
 
-## 8. RAG/Embedding Strategy
+Chat requests create or continue persisted chat threads. The API stores both user and assistant messages, including cited sources and model execution metadata.
 
-### Embedding
-- Hash-based bag-of-token projection into 256-dim normalized vector.
-- No external model call.
-- `apps/api/app/services/embeddings.py`
+Generation modes:
 
-### Chunking
-- Per tweet chunk includes author, URL, text, optional quoted tweet text.
-- Thread macro chunk concatenates ordered tweets with size cap.
-- `apps/api/app/services/ingest.py`
+- Local mode returns a deterministic grounded answer from retrieved snippets.
+- Hosted/BYOK mode calls OpenAI chat completions.
 
-### Retrieval
-- SQL-level cosine distance over pgvector.
-- Oversampling (`top_k * 4`, min 20) then metadata filter pass in Python.
-- `apps/api/app/services/rag.py`
+The OpenAI path asks for strict JSON sections, parses the response, validates citations against retrieved source URLs, and relabels unsupported claims as `Unknown / Speculation`.
 
-### Answer synthesis
-- No model call currently.
-- Heuristic classification into Facts/Opinions/Forecasts/Bull/Bear/Uncertainties.
-- "Unknown / Speculation" fallback when unsupported.
-- Prompt constant exists but is not wired into generation runtime:
-  `apps/api/app/services/prompts.py`
+## 8. Web App
 
-## 9. Web App Deep Dive (Next.js + Clerk)
+Primary files:
 
-Core files:
-- `apps/web/middleware.ts`
-- `apps/web/src/app/layout.tsx`
+- `apps/web/src/proxy.ts`
 - `apps/web/src/lib/server-api.ts`
+- `apps/web/src/app/app/*`
+- `apps/web/src/app/api/*`
 
-Auth model:
-- Clerk middleware protects `/app/*` and `/api/*`.
-- Next server-side route handlers call FastAPI and forward `x-clerk-user-id` headers.
-- This creates a thin BFF pattern for authenticated dashboard operations.
+Current dashboard routes:
 
-UI route map:
-- `/` landing
+- `/`
 - `/app/library`
 - `/app/chat`
+- `/app/settings/models`
 - `/app/settings/tokens`
 - `/app/threads/[id]`
 - `/sign-in/[[...sign-in]]`
 - `/sign-up/[[...sign-up]]`
 
-Internal API proxy routes:
-- `apps/web/src/app/api/tokens/route.ts`
-- `apps/web/src/app/api/tokens/[id]/route.ts`
-- `apps/web/src/app/api/chat/route.ts`
-- `apps/web/src/app/api/library/items/route.ts`
-- `apps/web/src/app/api/library/threads/route.ts`
-- `apps/web/src/app/api/library/threads/[id]/route.ts`
+Dashboard capabilities:
 
-Notable implementation detail:
-- If Clerk key is absent, root layout renders without `ClerkProvider` fallback; sign-in/up pages also fallback text.
-- This helps local builds but does not replace real auth in runtime.
+- Library browsing.
+- Client-side library search, author filtering, and folder filtering.
+- Folder create/delete and item/thread assignment.
+- API token create/revoke with expiry display.
+- Hosted/BYOK model settings.
+- Persisted chat thread selection, rename, delete, pagination, and message history.
 
-## 10. Extension Deep Dive (MV3)
+## 9. Extension
 
-Core files:
+Primary files:
+
 - `apps/extension/manifest.json`
-- `apps/extension/background.js`
+- `apps/extension/capture-core.js`
 - `apps/extension/content-script.js`
+- `apps/extension/background.js`
 - `apps/extension/options.js`
 - `apps/extension/sidepanel.js`
 
-Control flow:
-1. User clicks extension-injected button on x.com.
-2. Content script captures visible DOM tweet data only.
-3. Content script sends message to service worker (`INGEST_X`).
-4. Service worker reads PAT from `chrome.storage.sync` and calls FastAPI.
-5. For chat, sidepanel sends `CHAT` message to worker and renders response/citations.
+Capabilities:
 
-Capture model:
-- Save Tweet captures one current tweet.
-- Save Thread captures all visible tweet articles after bounded expansion attempts.
-- Partial capture inferred if "show more replies/show replies" still present.
-- Optional quoted tweet extraction is best-effort.
+- Configure PAT and API base URL.
+- Inject X toolbar with folder selector.
+- Save tweet, thread, or article.
+- Open side panel.
+- Ask chat questions and continue saved chat threads.
 
-## 11. Infrastructure and Build
+Known limitation: capture quality depends on X DOM structure and currently rendered/expanded content.
 
-Compose files:
-- `docker-compose.yml`
-- `infra/docker-compose.yml`
+## 10. Security And Operations
 
-Build decisions:
-- API container installs via `uv pip install --system .`.
-- Web container uses multi-stage pnpm workspace-aware Dockerfile.
-- Root `.dockerignore` avoids host `node_modules`, `.venv`, `.next` contamination.
+Implemented hardening:
 
-Note:
-- README references `.env.example`, but file is currently missing from root in this workspace snapshot.
-  This is a documentation/setup gap.
+- API verifies Clerk JWT issuer, signature, optional audience, and leeway.
+- PATs are random, prefix-validated, HMAC-hashed, expirable, and revocable.
+- API rejects wildcard CORS origins when credentials are enabled.
+- API emits request IDs and structured access/error logs.
+- BYOK API keys are encrypted with Fernet-compatible key derivation.
 
-## 12. Security and Trust Boundaries
+Remaining production considerations:
 
-Critical points for senior review:
+- Configure real Clerk issuer/JWKS/audience values before exposing the API.
+- Use a strong `TOKEN_PEPPER` and `BYOK_ENCRYPTION_KEY`.
+- Restrict CORS origins and extension IDs to production values.
+- Add rate limits/quotas for chat, ingest, and token endpoints.
+- Consider storing extension PATs in `chrome.storage.local` or documenting sync-storage tradeoffs.
 
-1. Header trust model for Clerk identity in FastAPI.
-- `/v1/tokens` trusts `x-clerk-user-id` headers and does not validate Clerk JWT.
-- Intended MVP shortcut, but directly calling API can spoof identity if endpoint is exposed.
+## 11. Tests And Validation
 
-2. PAT storage in extension.
-- PAT stored in `chrome.storage.sync` plaintext form.
-- Sync storage improves UX but expands token exposure surface.
+Current automated coverage:
 
-3. CORS policy is permissive.
-- API sets `allow_origins=["*"]` and `allow_credentials=True`.
-- Should be tightened for production origins and extension context.
+- API pytest integration tests for auth, observability, token expiry, article ingest, folders, model settings, grounded chat validation, and chat threads.
+- Extension Vitest/jsdom tests for tweet and article extraction.
+- Web Playwright smoke test for the landing page.
+- Web lint and production build checks.
+- GitHub Actions secret scan.
 
-4. Token lifecycle limitations.
-- No token expiry, no scoped permissions, no rotate endpoint.
-- Revocation supported, hashing is HMAC(pepper, token) which is good baseline for random tokens.
+Useful commands:
 
-## 13. Performance and Scalability Characteristics
+```bash
+docker compose run --rm --build -e EMBEDDING_MODEL=local-hash-v1 -e CHAT_MODEL=local-grounded-v1 api python -m pytest -q
+pnpm -C apps/extension test
+pnpm -C apps/web lint
+pnpm -C apps/web build
+pnpm -C apps/web test:e2e:list
+```
 
-Current behavior:
-- Ingest path is synchronous and includes embedding + DB writes.
-- Chat retrieval is single-query vector search + Python filtering.
-- Token `last_used_at` updates commit per PAT-authenticated call.
+## 12. Remaining Engineering Priorities
 
-Implications:
-- Good MVP simplicity and consistency.
-- Throughput bottlenecks likely at DB for high ingest/chat concurrency.
-- No async queueing, no caching, no batch embedding pipeline.
-
-## 14. Gaps, Risks, and Engineering Priorities
-
-High-priority technical debt:
-1. Add real Clerk JWT verification in API for web-authenticated endpoints.
-2. Introduce production embedding + LLM provider integration.
-3. Harden CORS and token handling.
-4. Implement thread dedupe/versioning (currently new `x_threads` row per thread capture).
-5. Add automated tests (API unit/integration + extension capture harness + web e2e).
-6. Restore/add `.env.example` to match onboarding docs.
-
-Medium-priority:
-1. Replace heuristic chat synthesis with grounded prompt + LLM call.
-2. Add observability (structured logs, request IDs, metrics).
-3. Add paging/sorting/filter controls in web UI and extension side panel.
-4. Improve capture robustness against x.com DOM changes.
-
-Low-priority:
-1. UI polish issues (example: thread back-link displays `?` due character issue).
-2. Consolidate duplicate compose definitions if not both needed.
-
-## 15. What a Senior Engineer Should Know Before Modifying
-
-1. Most business logic lives in FastAPI service modules and ingest/chat routes, not in web.
-2. Web layer is mostly a secure proxy + dashboard UI; extension talks directly to API.
-3. Authentication is intentionally split and currently asymmetric in security guarantees.
-4. Retrieval quality limitations are architectural, not just prompt tuning issues.
-5. Database schema is good MVP foundation but not yet optimized for large-scale RAG workloads.
-6. The fastest leverage improvements are auth hardening, model integration, and test coverage.
+1. Broaden web e2e coverage for dashboard flows.
+2. Run API pytest in CI with Postgres/pgvector.
+3. Add production rate limits and tighter operational controls.
+4. Improve retrieval quality with hybrid scoring, recency/source weighting, and evaluation fixtures.
+5. Move library filtering/pagination from client-only state to server-backed controls.
+6. Improve extension side-panel scope/folder controls.
+7. Add observability metrics and runbook-level deployment docs.

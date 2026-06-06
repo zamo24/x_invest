@@ -13,7 +13,7 @@ Browser extension + web app that lets users save X (Twitter) tweets/threads/arti
 
 - Docker + Docker Compose
 - Node 20+
-- pnpm 10+
+- pnpm 9+ (the workspace is pinned to `pnpm@9.0.0`)
 - Python 3.11+ (optional for local non-docker API dev)
 - Clerk account/app for web auth
 
