@@ -1,0 +1,51 @@
+name: API Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: copilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d copilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/copilot
+      TOKEN_PEPPER: ci-token-pepper-change-me
+      BYOK_ENCRYPTION_KEY: ci-byok-encryption-key-change-me
+      EMBEDDING_MODEL: local-hash-v1
+      CHAT_MODEL: local-grounded-v1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install --system .
+
+      - name: Run pytest
+        run: python -m pytest -q
