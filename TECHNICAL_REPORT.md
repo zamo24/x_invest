@@ -22,10 +22,14 @@ This monorepo implements a B2C "save from X + chat over saved corpus" MVP with t
 The architecture remains deliberately compact:
 
 - Postgres is the system of record and vector store.
+- Shared tables use `user_id` as the tenant and future shard-routing key.
 - Ingestion, chunking, embedding, and DB writes are synchronous.
 - Extension authentication uses PATs.
 - Web authentication uses Clerk session JWTs forwarded to the API.
 - The API verifies Clerk JWTs directly with Clerk JWKS.
+
+The accepted multi-tenant storage and scaling strategy is documented in
+`docs/architecture/001-multi-tenant-storage.md`.
 
 ## 2. Core Design Decisions
 

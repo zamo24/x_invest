@@ -8,6 +8,7 @@ Browser extension + web app that lets users save X (Twitter) tweets/threads/arti
 - `apps/api` - FastAPI + SQLAlchemy + Alembic + pgvector ingest/retrieval/chat APIs
 - `apps/extension` - Manifest V3 extension (options PAT, content script save actions, side panel chat)
 - `infra/docker-compose.yml` - Local dev compose stack
+- `docs/architecture` - accepted architecture decisions and scaling strategy
 
 ## Prerequisites
 
