@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     token_pepper: str = Field(default="dev-token-pepper-change-me", alias="TOKEN_PEPPER")
     pat_default_ttl_days: int = Field(default=90, alias="PAT_DEFAULT_TTL_DAYS")
     pat_max_ttl_days: int = Field(default=365, alias="PAT_MAX_TTL_DAYS")
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
+    rate_limit_chat_requests: int = Field(default=30, alias="RATE_LIMIT_CHAT_REQUESTS")
+    rate_limit_ingest_requests: int = Field(default=60, alias="RATE_LIMIT_INGEST_REQUESTS")
+    rate_limit_token_requests: int = Field(default=30, alias="RATE_LIMIT_TOKEN_REQUESTS")
     cors_allow_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000",
         alias="CORS_ALLOW_ORIGINS",

@@ -39,6 +39,12 @@ cp .env.example .env
    Optional token policy:
    - `PAT_DEFAULT_TTL_DAYS` (default `90`)
    - `PAT_MAX_TTL_DAYS` (default `365`)
+   Optional in-process rate limits:
+   - `RATE_LIMIT_ENABLED=true`
+   - `RATE_LIMIT_WINDOW_SECONDS=60`
+   - `RATE_LIMIT_CHAT_REQUESTS=30`
+   - `RATE_LIMIT_INGEST_REQUESTS=60`
+   - `RATE_LIMIT_TOKEN_REQUESTS=30`
 
 4. For OpenAI-backed embeddings + chat (step 2), set:
 
@@ -65,6 +71,7 @@ cp .env.example .env
 - `APP_VERSION=0.1.0`
 - `LOG_LEVEL=INFO`
 - API responses include `x-request-id` for tracing.
+- Rate-limited responses return HTTP `429`, `retry-after`, and `x-ratelimit-*` headers.
 
 ## Run Locally (Docker)
 
@@ -270,3 +277,4 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - PAT auth rejects revoked and expired tokens (`expires_at`).
 - `/health` now returns environment/version metadata and current `request_id`.
 - Thread recaptures dedupe on root tweet identity and increment `capture_version` instead of creating duplicate thread rows.
+- In-process rate limiting protects chat, ingest, and token routes. Use external/distributed rate limiting as well when running multiple API instances.

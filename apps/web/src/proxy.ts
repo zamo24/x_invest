@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isProtectedRoute = createRouteMatcher(["/app(.*)"]);
-const bypassClerkForE2E = process.env.E2E_BYPASS_CLERK_AUTH === "true";
+const bypassClerkForE2E = process.env.E2E_BYPASS_CLERK_AUTH === "true" && process.env.NODE_ENV !== "production";
 
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req) && !bypassClerkForE2E) {

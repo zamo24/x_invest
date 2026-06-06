@@ -219,13 +219,15 @@ Implemented hardening:
 - API rejects wildcard CORS origins when credentials are enabled.
 - API emits request IDs and structured access/error logs.
 - BYOK API keys are encrypted with Fernet-compatible key derivation.
+- In-process fixed-window rate limits protect chat, ingest, and token routes.
 
 Remaining production considerations:
 
 - Configure real Clerk issuer/JWKS/audience values before exposing the API.
 - Use a strong `TOKEN_PEPPER` and `BYOK_ENCRYPTION_KEY`.
 - Restrict CORS origins and extension IDs to production values.
-- Add rate limits/quotas for chat, ingest, and token endpoints.
+- Tune rate limits/quotas for production traffic patterns.
+- Use a distributed rate limiter or API gateway when running more than one API instance.
 - Consider storing extension PATs in `chrome.storage.local` or documenting sync-storage tradeoffs.
 
 ## 11. Tests And Validation
@@ -252,7 +254,7 @@ pnpm -C apps/web test:e2e:list
 
 1. Broaden web e2e coverage for dashboard flows.
 2. Run API pytest in CI with Postgres/pgvector.
-3. Add production rate limits and tighter operational controls.
+3. Add distributed production rate limits and tighter operational controls.
 4. Improve retrieval quality with hybrid scoring, recency/source weighting, and evaluation fixtures.
 5. Move library filtering/pagination from client-only state to server-backed controls.
 6. Improve extension side-panel scope/folder controls.
