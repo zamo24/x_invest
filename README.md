@@ -57,6 +57,13 @@ cp .env.example .env
 - `HOSTED_CHAT_PROVIDER=openai`
 - `HOSTED_CHAT_MODELS=gpt-4o-mini,gpt-4.1-mini,gpt-5-mini,gpt-5.2`
 
+Optional retrieval tuning:
+
+- `RETRIEVAL_OVERSAMPLE_MULTIPLIER=6`
+- `RETRIEVAL_MIN_CANDIDATES=30`
+- `RETRIEVAL_LEXICAL_WEIGHT=0.18`
+- `RETRIEVAL_RECENCY_WEIGHT=0.04`
+
 5. CORS hardening defaults (can override if needed):
 
 - `CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
@@ -271,7 +278,7 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - DB extension init: `infra/db/init.sql` includes `CREATE EXTENSION IF NOT EXISTS vector;`
 - If `EMBEDDING_MODEL`/`CHAT_MODEL` are set to `local-*`, API uses local deterministic fallback logic.
 - If non-local models are configured, API calls OpenAI (`/v1/embeddings` and `/v1/chat/completions`).
-- `/v1/chat` requests strict JSON sections from the LLM, then server-side validates grounding against cited snippets.
+- `/v1/chat` retrieves pgvector candidates, reranks them with lexical and recency signals, requests strict JSON sections from the LLM, then server-side validates grounding against cited snippets.
 - Unsupported or weakly grounded claims are relabeled as `Unknown / Speculation`.
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
 - PAT auth rejects revoked and expired tokens (`expires_at`).

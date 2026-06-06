@@ -146,7 +146,8 @@ Retrieval:
 
 - Embeds the query.
 - Searches `chunks` with pgvector cosine distance.
-- Oversamples before metadata filtering.
+- Oversamples candidates before metadata filtering.
+- Reranks filtered candidates with vector similarity, lexical overlap, and recency signals.
 - Supports author/date/folder filters and single saved-thread scope.
 
 ## 7. Chat Generation
@@ -255,7 +256,7 @@ pnpm -C apps/web test:e2e:list
 1. Broaden web e2e coverage for dashboard flows.
 2. Run API pytest in CI with Postgres/pgvector.
 3. Add distributed production rate limits and tighter operational controls.
-4. Improve retrieval quality with hybrid scoring, recency/source weighting, and evaluation fixtures.
+4. Add retrieval evaluation fixtures and tune hybrid scoring against them.
 5. Move library filtering/pagination from client-only state to server-backed controls.
 6. Improve extension side-panel scope/folder controls.
 7. Add observability metrics and runbook-level deployment docs.

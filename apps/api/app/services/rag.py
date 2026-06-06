@@ -30,6 +30,28 @@ SECTION_ORDER: list[tuple[str, str]] = [
     ("uncertainties", "Uncertainties"),
 ]
 WORD_RE = re.compile(r"[a-z0-9]{3,}")
+STOPWORDS = {
+    "about",
+    "after",
+    "all",
+    "and",
+    "are",
+    "but",
+    "can",
+    "for",
+    "from",
+    "has",
+    "have",
+    "into",
+    "not",
+    "over",
+    "still",
+    "the",
+    "this",
+    "what",
+    "with",
+    "your",
+}
 
 
 @dataclass
@@ -92,10 +114,68 @@ def _passes_filters(metadata: dict[str, Any], filters: ChatFilters | None) -> bo
     return True
 
 
+def _query_terms(text: str) -> set[str]:
+    return {term for term in WORD_RE.findall((text or "").lower()) if term not in STOPWORDS}
+
+
+def _lexical_score(query_terms: set[str], text: str) -> float:
+    if not query_terms:
+        return 0.0
+
+    text_terms = set(WORD_RE.findall((text or "").lower()))
+    if not text_terms:
+        return 0.0
+
+    overlap = len(query_terms & text_terms)
+    return overlap / max(1, len(query_terms))
+
+
+def _recency_score(metadata: dict[str, Any], *, now: datetime) -> float:
+    created_at = _parse_datetime(metadata.get("created_at"))
+    if created_at is None:
+        return 0.0
+
+    age_days = max(0.0, (now - created_at).total_seconds() / 86400.0)
+    return max(0.0, 1.0 - (age_days / 365.0))
+
+
+def _vector_score(distance: float) -> float:
+    bounded_distance = min(max(distance, 0.0), 2.0)
+    return 1.0 - (bounded_distance / 2.0)
+
+
+def rerank_retrieved_chunks(
+    candidates: list[RetrievedChunk],
+    *,
+    query_text: str,
+    top_k: int,
+    lexical_weight: float,
+    recency_weight: float,
+    now: datetime | None = None,
+) -> list[RetrievedChunk]:
+    query_terms = _query_terms(query_text)
+    scored_at = now or datetime.now(timezone.utc)
+    safe_lexical_weight = min(max(lexical_weight, 0.0), 0.8)
+    safe_recency_weight = min(max(recency_weight, 0.0), 0.5)
+    vector_weight = max(0.0, 1.0 - safe_lexical_weight - safe_recency_weight)
+
+    def score(candidate: RetrievedChunk) -> tuple[float, float]:
+        metadata = candidate.chunk.metadata_json or {}
+        hybrid_score = (
+            vector_weight * _vector_score(candidate.distance)
+            + safe_lexical_weight * _lexical_score(query_terms, candidate.chunk.chunk_text)
+            + safe_recency_weight * _recency_score(metadata, now=scored_at)
+        )
+        return (hybrid_score, -candidate.distance)
+
+    return sorted(candidates, key=score, reverse=True)[:top_k]
+
+
 def retrieve_chunks(
     db: Session,
     *,
     user_id: UUID,
+    query_text: str,
     query_vector: list[float],
     scope: str,
     thread_id: UUID | None,
@@ -127,7 +207,12 @@ def retrieve_chunks(
             )
         )
 
-    stmt = stmt.order_by("distance").limit(max(top_k * 4, 20))
+    settings = get_settings()
+    candidate_limit = max(
+        top_k * max(1, settings.retrieval_oversample_multiplier),
+        max(top_k, settings.retrieval_min_candidates),
+    )
+    stmt = stmt.order_by("distance").limit(candidate_limit)
 
     rows = db.execute(stmt).all()
 
@@ -136,10 +221,14 @@ def retrieve_chunks(
         metadata = chunk.metadata_json or {}
         if _passes_filters(metadata, filters):
             filtered.append(RetrievedChunk(chunk=chunk, distance=float(distance)))
-        if len(filtered) >= top_k:
-            break
 
-    return filtered
+    return rerank_retrieved_chunks(
+        filtered,
+        query_text=query_text,
+        top_k=top_k,
+        lexical_weight=settings.retrieval_lexical_weight,
+        recency_weight=settings.retrieval_recency_weight,
+    )
 
 
 def _shorten(text: str, max_len: int = 420) -> str:

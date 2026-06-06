@@ -130,6 +130,7 @@ def chat(
     retrieved = retrieve_chunks(
         db,
         user_id=user.id,
+        query_text=payload.message,
         query_vector=query_vec,
         scope=payload.scope,
         thread_id=library_thread_id,

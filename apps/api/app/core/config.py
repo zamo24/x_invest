@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
     byok_encryption_key: str | None = Field(default=None, alias="BYOK_ENCRYPTION_KEY")
     embedding_dim: int = Field(default=256, alias="EMBEDDING_DIM")
+    retrieval_oversample_multiplier: int = Field(default=6, alias="RETRIEVAL_OVERSAMPLE_MULTIPLIER")
+    retrieval_min_candidates: int = Field(default=30, alias="RETRIEVAL_MIN_CANDIDATES")
+    retrieval_lexical_weight: float = Field(default=0.18, alias="RETRIEVAL_LEXICAL_WEIGHT")
+    retrieval_recency_weight: float = Field(default=0.04, alias="RETRIEVAL_RECENCY_WEIGHT")
 
 
 @lru_cache(maxsize=1)
