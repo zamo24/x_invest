@@ -14,7 +14,10 @@ type ItemsCardProps = {
   items: LibraryItem[];
   folders: Folder[];
   assigningItemId: string | null;
+  hasMore: boolean;
+  loadingMore: boolean;
   onAssignFolder: (itemId: string, folderId: string | null) => void;
+  onLoadMore: () => void;
 };
 
 function formatDate(value: string | null) {
@@ -30,7 +33,15 @@ function formatDate(value: string | null) {
   return asDate.toLocaleString();
 }
 
-export function ItemsCard({ items, folders, assigningItemId, onAssignFolder }: ItemsCardProps) {
+export function ItemsCard({
+  items,
+  folders,
+  assigningItemId,
+  hasMore,
+  loadingMore,
+  onAssignFolder,
+  onLoadMore,
+}: ItemsCardProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   function toggleExpanded(itemId: string) {
@@ -55,7 +66,7 @@ export function ItemsCard({ items, folders, assigningItemId, onAssignFolder }: I
         {items.length === 0 ? (
           <p className="text-sm text-slate-600">No items saved yet.</p>
         ) : (
-          items.slice(0, 20).map((item, index) => (
+          items.map((item, index) => (
             <div key={item.id} className="space-y-3">
               {index > 0 && <Separator />}
               <article className="space-y-2">
@@ -112,6 +123,11 @@ export function ItemsCard({ items, folders, assigningItemId, onAssignFolder }: I
             </div>
           ))
         )}
+        {hasMore ? (
+          <Button type="button" variant="outline" className="w-full" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "Loading..." : "Load more items"}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );

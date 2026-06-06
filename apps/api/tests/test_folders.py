@@ -63,6 +63,18 @@ def test_folder_create_assign_and_filter_flow(client: TestClient, auth_context: 
     assert len(items_in_folder.json()) == 1
     assert items_in_folder.json()[0]["id"] == item_id
 
+    searched_items = client.get("/v1/library/items?q=photonics", headers=headers)
+    assert searched_items.status_code == 200, searched_items.text
+    assert any(item["id"] == item_id for item in searched_items.json())
+
+    searched_threads = client.get("/v1/library/threads?q=photonics&author_handle=foldertester", headers=headers)
+    assert searched_threads.status_code == 200, searched_threads.text
+    assert any(thread["id"] == thread_id for thread in searched_threads.json())
+
+    missing_items = client.get("/v1/library/items?q=not-a-real-thesis", headers=headers)
+    assert missing_items.status_code == 200, missing_items.text
+    assert all(item["id"] != item_id for item in missing_items.json())
+
     clear_thread_folder = client.patch(f"/v1/library/threads/{thread_id}/folder", headers=headers, json={"folder_id": None})
     assert clear_thread_folder.status_code == 200, clear_thread_folder.text
     assert clear_thread_folder.json()["folder_id"] is None

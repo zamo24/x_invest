@@ -150,8 +150,8 @@ Secret scan (GitHub Actions):
 - `POST /v1/chat` (Bearer PAT or Bearer Clerk JWT) source-grounded chat
 - `GET /v1/model-settings` (Bearer PAT or Bearer Clerk JWT) get hosted/BYOK model settings
 - `PUT /v1/model-settings` update hosted/BYOK model settings (OpenAI BYOK in MVP, including `reasoning_effort` for GPT-5 models)
-- `GET /v1/library/items` (Bearer PAT or Bearer Clerk JWT)
-- `GET /v1/library/threads` (Bearer PAT or Bearer Clerk JWT)
+- `GET /v1/library/items?limit=&offset=&folder_id=&unassigned=&q=&author_handle=` (Bearer PAT or Bearer Clerk JWT)
+- `GET /v1/library/threads?limit=&offset=&folder_id=&unassigned=&q=&author_handle=` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/threads/{id}` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/folders` (Bearer PAT or Bearer Clerk JWT)
 - `POST /v1/library/folders` create a topic folder
@@ -285,3 +285,4 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - `/health` now returns environment/version metadata and current `request_id`.
 - Thread recaptures dedupe on root tweet identity and increment `capture_version` instead of creating duplicate thread rows.
 - In-process rate limiting protects chat, ingest, and token routes. Use external/distributed rate limiting as well when running multiple API instances.
+- Library dashboard filtering/search uses server query params and paged "load more" requests instead of filtering only the first client-loaded page.

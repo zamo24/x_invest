@@ -16,6 +16,42 @@ type FolderAssignmentResponse = {
   folder_name: string | null;
 };
 
+const PAGE_SIZE = 50;
+
+function buildLibraryParams({
+  offset,
+  activeFilter,
+  activeAuthorFilter,
+  searchQuery,
+}: {
+  offset: number;
+  activeFilter: LibraryFolderFilter;
+  activeAuthorFilter: string;
+  searchQuery: string;
+}) {
+  const params = new URLSearchParams({
+    limit: String(PAGE_SIZE),
+    offset: String(offset),
+  });
+
+  if (activeFilter === "unassigned") {
+    params.set("unassigned", "true");
+  } else if (activeFilter !== "all") {
+    params.set("folder_id", activeFilter);
+  }
+
+  if (activeAuthorFilter !== "all") {
+    params.set("author_handle", activeAuthorFilter);
+  }
+
+  const cleanedSearch = searchQuery.trim();
+  if (cleanedSearch) {
+    params.set("q", cleanedSearch);
+  }
+
+  return params;
+}
+
 export default function LibraryPage() {
   const [threads, setThreads] = useState<LibraryThreadListItem[]>([]);
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -23,8 +59,13 @@ export default function LibraryPage() {
   const [activeFilter, setActiveFilter] = useState<LibraryFolderFilter>("all");
   const [activeAuthorFilter, setActiveAuthorFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
+  const [loadingMoreItems, setLoadingMoreItems] = useState(false);
+  const [hasMoreThreads, setHasMoreThreads] = useState(false);
+  const [hasMoreItems, setHasMoreItems] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [assigningItemId, setAssigningItemId] = useState<string | null>(null);
@@ -47,12 +88,6 @@ export default function LibraryPage() {
     return Array.from(handles).sort((a, b) => a.localeCompare(b));
   }, [items, threads]);
 
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-  const searchTerms = useMemo(
-    () => normalizedSearch.split(/\s+/).filter((term) => term.length > 0),
-    [normalizedSearch],
-  );
-
   const reloadFolders = useCallback(async () => {
     const foldersRes = await fetch("/api/library/folders", { cache: "no-store" });
     if (!foldersRes.ok) {
@@ -62,23 +97,57 @@ export default function LibraryPage() {
     setFolders((await foldersRes.json()) as Folder[]);
   }, []);
 
+  const fetchThreadsPage = useCallback(
+    async (offset: number) => {
+      const params = buildLibraryParams({
+        offset,
+        activeFilter,
+        activeAuthorFilter,
+        searchQuery: debouncedSearchQuery,
+      });
+      const res = await fetch(`/api/library/threads?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error("Failed to load threads");
+      }
+      return (await res.json()) as LibraryThreadListItem[];
+    },
+    [activeAuthorFilter, activeFilter, debouncedSearchQuery],
+  );
+
+  const fetchItemsPage = useCallback(
+    async (offset: number) => {
+      const params = buildLibraryParams({
+        offset,
+        activeFilter,
+        activeAuthorFilter,
+        searchQuery: debouncedSearchQuery,
+      });
+      const res = await fetch(`/api/library/items?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error("Failed to load items");
+      }
+      return (await res.json()) as LibraryItem[];
+    },
+    [activeAuthorFilter, activeFilter, debouncedSearchQuery],
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setError(null);
       try {
-        const [threadsRes, itemsRes] = await Promise.all([
-          fetch("/api/library/threads", { cache: "no-store" }),
-          fetch("/api/library/items", { cache: "no-store" }),
-        ]);
-
-        if (!threadsRes.ok || !itemsRes.ok) {
-          throw new Error("Failed to load library");
-        }
-
-        const threadsJson = (await threadsRes.json()) as LibraryThreadListItem[];
-        const itemsJson = (await itemsRes.json()) as LibraryItem[];
-
+        const [threadsJson, itemsJson] = await Promise.all([fetchThreadsPage(0), fetchItemsPage(0)]);
         setThreads(threadsJson);
         setItems(itemsJson);
+        setHasMoreThreads(threadsJson.length === PAGE_SIZE);
+        setHasMoreItems(itemsJson.length === PAGE_SIZE);
         await reloadFolders();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -88,80 +157,40 @@ export default function LibraryPage() {
     }
 
     void load();
-  }, [reloadFolders]);
-
-  const filteredThreads = useMemo(() => {
-    return threads.filter((thread) => {
-      if (activeFilter === "unassigned" && thread.folder_id) {
-        return false;
-      }
-      if (activeFilter !== "all" && activeFilter !== "unassigned" && thread.folder_id !== activeFilter) {
-        return false;
-      }
-      if (activeAuthorFilter !== "all" && !(thread.author_handles ?? []).includes(activeAuthorFilter)) {
-        return false;
-      }
-      if (searchTerms.length === 0) {
-        return true;
-      }
-
-      const haystack = [
-        thread.id,
-        thread.root_tweet_id,
-        thread.root_url,
-        thread.title,
-        thread.captured_at,
-        thread.folder_name,
-        ...(thread.author_handles ?? []),
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(" ")
-        .toLowerCase();
-
-      return searchTerms.every((term) => haystack.includes(term));
-    });
-  }, [threads, activeFilter, activeAuthorFilter, searchTerms]);
-
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      if (activeFilter === "unassigned" && item.folder_id) {
-        return false;
-      }
-      if (activeFilter !== "all" && activeFilter !== "unassigned" && item.folder_id !== activeFilter) {
-        return false;
-      }
-      if (activeAuthorFilter !== "all" && item.author_handle !== activeAuthorFilter) {
-        return false;
-      }
-      if (searchTerms.length === 0) {
-        return true;
-      }
-
-      const haystack = [
-        item.id,
-        item.tweet_id,
-        item.url,
-        item.author_handle,
-        item.author_name,
-        item.created_at,
-        item.captured_at,
-        item.source_kind,
-        item.title,
-        item.text,
-        item.folder_name,
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(" ")
-        .toLowerCase();
-
-      return searchTerms.every((term) => haystack.includes(term));
-    });
-  }, [items, activeFilter, activeAuthorFilter, searchTerms]);
+  }, [fetchItemsPage, fetchThreadsPage, reloadFolders]);
 
   function onResetFilters() {
     setActiveFilter("all");
     setActiveAuthorFilter("all");
     setSearchQuery("");
+  }
+
+  async function onLoadMoreThreads() {
+    setError(null);
+    setLoadingMoreThreads(true);
+    try {
+      const next = await fetchThreadsPage(threads.length);
+      setThreads((previous) => [...previous, ...next]);
+      setHasMoreThreads(next.length === PAGE_SIZE);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoadingMoreThreads(false);
+    }
+  }
+
+  async function onLoadMoreItems() {
+    setError(null);
+    setLoadingMoreItems(true);
+    try {
+      const next = await fetchItemsPage(items.length);
+      setItems((previous) => [...previous, ...next]);
+      setHasMoreItems(next.length === PAGE_SIZE);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoadingMoreItems(false);
+    }
   }
 
   async function onCreateFolder(name: string) {
@@ -331,16 +360,22 @@ export default function LibraryPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ThreadsCard
-          threads={filteredThreads}
+          threads={threads}
           folders={folders}
           assigningThreadId={assigningThreadId}
+          hasMore={hasMoreThreads}
+          loadingMore={loadingMoreThreads}
           onAssignFolder={onAssignThreadFolder}
+          onLoadMore={onLoadMoreThreads}
         />
         <ItemsCard
-          items={filteredItems}
+          items={items}
           folders={folders}
           assigningItemId={assigningItemId}
+          hasMore={hasMoreItems}
+          loadingMore={loadingMoreItems}
           onAssignFolder={onAssignItemFolder}
+          onLoadMore={onLoadMoreItems}
         />
       </div>
     </section>

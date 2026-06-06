@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_any_authenticated_user
@@ -189,6 +189,8 @@ def list_items(
     offset: int = Query(default=0, ge=0),
     folder_id: UUID | None = Query(default=None),
     unassigned: bool = Query(default=False),
+    q: str | None = Query(default=None, max_length=200),
+    author_handle: str | None = Query(default=None, max_length=100),
     user: User = Depends(get_any_authenticated_user),
     db: Session = Depends(get_db),
 ) -> list[LibraryItem]:
@@ -208,6 +210,24 @@ def list_items(
     elif unassigned:
         stmt = stmt.where(XItem.folder_id.is_(None))
 
+    if author_handle:
+        normalized_author = author_handle.lower().lstrip("@")
+        stmt = stmt.where(func.lower(XItem.author_handle) == normalized_author)
+
+    cleaned_query = (q or "").strip().lower()
+    if cleaned_query:
+        pattern = f"%{cleaned_query}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(XItem.tweet_id).like(pattern),
+                func.lower(XItem.url).like(pattern),
+                func.lower(XItem.author_handle).like(pattern),
+                func.lower(func.coalesce(XItem.author_name, "")).like(pattern),
+                func.lower(XItem.text).like(pattern),
+                func.lower(func.coalesce(cast(XItem.json_raw["title"].astext, String), "")).like(pattern),
+            )
+        )
+
     stmt = stmt.order_by(XItem.captured_at.desc()).limit(limit).offset(offset)
     rows = db.execute(stmt).all()
     return [_library_item(item=row.XItem, folder_name=row.folder_name) for row in rows]
@@ -219,6 +239,8 @@ def list_threads(
     offset: int = Query(default=0, ge=0),
     folder_id: UUID | None = Query(default=None),
     unassigned: bool = Query(default=False),
+    q: str | None = Query(default=None, max_length=200),
+    author_handle: str | None = Query(default=None, max_length=100),
     user: User = Depends(get_any_authenticated_user),
     db: Session = Depends(get_db),
 ) -> list[LibraryThreadListItem]:
@@ -252,6 +274,23 @@ def list_threads(
         stmt = stmt.where(XThread.folder_id == folder_id)
     elif unassigned:
         stmt = stmt.where(XThread.folder_id.is_(None))
+
+    if author_handle:
+        normalized_author = author_handle.lower().lstrip("@")
+        stmt = stmt.where(func.lower(XItem.author_handle) == normalized_author)
+
+    cleaned_query = (q or "").strip().lower()
+    if cleaned_query:
+        pattern = f"%{cleaned_query}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(XThread.title).like(pattern),
+                func.lower(func.coalesce(XThread.root_tweet_id, "")).like(pattern),
+                func.lower(func.coalesce(XThread.root_url, "")).like(pattern),
+                func.lower(func.coalesce(XItem.author_handle, "")).like(pattern),
+                func.lower(func.coalesce(XItem.text, "")).like(pattern),
+            )
+        )
 
     stmt = stmt.group_by(XThread.id, XFolder.name).order_by(XThread.captured_at.desc()).limit(limit).offset(offset)
     rows = db.execute(stmt).all()

@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -12,10 +13,21 @@ type ThreadsCardProps = {
   threads: LibraryThreadListItem[];
   folders: Folder[];
   assigningThreadId: string | null;
+  hasMore: boolean;
+  loadingMore: boolean;
   onAssignFolder: (threadId: string, folderId: string | null) => void;
+  onLoadMore: () => void;
 };
 
-export function ThreadsCard({ threads, folders, assigningThreadId, onAssignFolder }: ThreadsCardProps) {
+export function ThreadsCard({
+  threads,
+  folders,
+  assigningThreadId,
+  hasMore,
+  loadingMore,
+  onAssignFolder,
+  onLoadMore,
+}: ThreadsCardProps) {
   return (
     <Card className="flex h-full max-h-[70vh] flex-col">
       <CardHeader>
@@ -57,6 +69,17 @@ export function ThreadsCard({ threads, folders, assigningThreadId, onAssignFolde
             </div>
           ))
         )}
+        {hasMore ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={loadingMore}
+            onClick={onLoadMore}
+          >
+            {loadingMore ? "Loading..." : "Load more threads"}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );

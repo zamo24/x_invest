@@ -184,7 +184,7 @@ Current dashboard routes:
 Dashboard capabilities:
 
 - Library browsing.
-- Client-side library search, author filtering, and folder filtering.
+- Server-backed library search, author filtering, folder filtering, and paged load-more results.
 - Folder create/delete and item/thread assignment.
 - API token create/revoke with expiry display.
 - Hosted/BYOK model settings.
@@ -257,6 +257,6 @@ pnpm -C apps/web test:e2e:list
 2. Run API pytest in CI with Postgres/pgvector.
 3. Add distributed production rate limits and tighter operational controls.
 4. Add retrieval evaluation fixtures and tune hybrid scoring against them.
-5. Move library filtering/pagination from client-only state to server-backed controls.
+5. Add total counts and cursor pagination for large library datasets.
 6. Improve extension side-panel scope/folder controls.
 7. Add observability metrics and runbook-level deployment docs.
