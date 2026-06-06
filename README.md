@@ -152,7 +152,7 @@ Secret scan (GitHub Actions):
 - `PUT /v1/model-settings` update hosted/BYOK model settings (OpenAI BYOK in MVP, including `reasoning_effort` for GPT-5 models)
 - `GET /v1/library/items?limit=&offset=&folder_id=&unassigned=&q=&author_handle=` (Bearer PAT or Bearer Clerk JWT)
 - `GET /v1/library/threads?limit=&offset=&folder_id=&unassigned=&q=&author_handle=` (Bearer PAT or Bearer Clerk JWT)
-- `GET /v1/library/threads/{id}` (Bearer PAT or Bearer Clerk JWT)
+- `GET /v1/library/threads/{id}?version=` get latest or historical immutable capture snapshot
 - `GET /v1/library/folders` (Bearer PAT or Bearer Clerk JWT)
 - `POST /v1/library/folders` create a topic folder
 - `DELETE /v1/library/folders/{id}` delete folder (saved content remains, becomes unassigned)
@@ -283,6 +283,7 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
 - PAT auth rejects revoked and expired tokens (`expires_at`).
 - `/health` now returns environment/version metadata and current `request_id`.
-- Thread recaptures dedupe on root tweet identity and increment `capture_version` instead of creating duplicate thread rows.
+- Thread recaptures dedupe on root tweet identity, increment `capture_version`, and preserve immutable historical snapshots.
+- `FUTURE_WORK.md` documents the planned deterministic retrieval evaluation harness.
 - In-process rate limiting protects chat, ingest, and token routes. Use external/distributed rate limiting as well when running multiple API instances.
 - Library dashboard filtering/search uses server query params and paged "load more" requests instead of filtering only the first client-loaded page.

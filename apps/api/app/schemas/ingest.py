@@ -90,6 +90,33 @@ class LibraryItem(BaseModel):
     folder_name: str | None = None
 
 
+class ThreadCaptureSummary(BaseModel):
+    id: UUID
+    capture_version: int
+    captured_at: datetime
+    is_partial: bool
+    partial_reason: str | None = None
+    item_count: int
+
+
+class ThreadCaptureItem(BaseModel):
+    id: UUID | None = None
+    item_order: int
+    tweet_id: str
+    url: str
+    author_handle: str
+    author_name: str | None = None
+    created_at: datetime | None = None
+    captured_at: datetime
+    text: str
+    source_kind: Literal["tweet"] = "tweet"
+    title: None = None
+    folder_id: None = None
+    folder_name: None = None
+
+
 class ThreadDetailResponse(BaseModel):
     thread: LibraryThreadListItem
-    items: list[LibraryItem]
+    selected_capture: ThreadCaptureSummary
+    captures: list[ThreadCaptureSummary]
+    items: list[ThreadCaptureItem]

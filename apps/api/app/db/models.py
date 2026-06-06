@@ -117,6 +117,48 @@ class XThreadItem(Base):
     )
 
 
+class XThreadCapture(Base):
+    __tablename__ = "x_thread_captures"
+    __table_args__ = (UniqueConstraint("thread_id", "capture_version", name="uq_x_thread_captures_thread_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    thread_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("x_threads.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    capture_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    root_tweet_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    root_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title: Mapped[str] = mapped_column(String(280), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    partial_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    macro_chunk_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class XThreadCaptureItem(Base):
+    __tablename__ = "x_thread_capture_items"
+
+    capture_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("x_thread_captures.id", ondelete="CASCADE"), primary_key=True
+    )
+    item_order: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("x_items.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    tweet_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    author_handle: Mapped[str] = mapped_column(String(100), nullable=False)
+    author_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    quoted_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    json_raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 class XFolder(Base):
     __tablename__ = "x_folders"
     __table_args__ = (UniqueConstraint("user_id", "name", name="uq_x_folders_user_name"),)

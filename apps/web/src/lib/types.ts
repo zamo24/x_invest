@@ -37,6 +37,31 @@ export type LibraryItem = {
   folder_name: string | null;
 };
 
+export type ThreadCaptureSummary = {
+  id: string;
+  capture_version: number;
+  captured_at: string;
+  is_partial: boolean;
+  partial_reason: string | null;
+  item_count: number;
+};
+
+export type ThreadCaptureItem = {
+  id: string | null;
+  item_order: number;
+  tweet_id: string;
+  url: string;
+  author_handle: string;
+  author_name: string | null;
+  created_at: string | null;
+  captured_at: string;
+  text: string;
+  source_kind: "tweet";
+  title: null;
+  folder_id: null;
+  folder_name: null;
+};
+
 export type Folder = {
   id: string;
   name: string;

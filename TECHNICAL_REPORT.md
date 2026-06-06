@@ -99,7 +99,7 @@ Implemented API surface:
 - `PUT /v1/model-settings`
 - `GET /v1/library/items`
 - `GET /v1/library/threads`
-- `GET /v1/library/threads/{id}`
+- `GET /v1/library/threads/{id}?version=` latest or historical immutable capture detail
 - `GET /v1/library/folders`
 - `POST /v1/library/folders`
 - `DELETE /v1/library/folders/{id}`
@@ -117,6 +117,8 @@ Current model set:
 - `x_items`
 - `x_threads`
 - `x_thread_items`
+- `x_thread_captures`
+- `x_thread_capture_items`
 - `chunks`
 - `chat_threads`
 - `chat_messages`
@@ -130,6 +132,7 @@ Migration sequence:
 5. Reasoning effort.
 6. API token expiry.
 7. Persisted chat threads and messages.
+8. Immutable thread capture snapshots with backfill of existing latest-state threads.
 
 ## 6. Ingest And Retrieval
 
@@ -139,6 +142,10 @@ Migration sequence:
 - Thread capture with recapture versioning.
 - X article capture with long-content chunking.
 - Optional folder assignment.
+
+Each thread recapture appends an immutable capture record with copied tweet payloads and the exact macro chunk text.
+The existing thread and thread-item records remain the latest-state projection used by library listing, filtering, and retrieval.
+Thread detail can select any preserved capture version.
 
 The API creates `x_item` chunks for tweets/articles and `x_thread` macro chunks for threads. Article chunks are split into multiple body chunks for long-form content.
 
@@ -254,9 +261,8 @@ pnpm -C apps/web test:e2e:list
 ## 12. Remaining Engineering Priorities
 
 1. Broaden web e2e coverage for dashboard flows.
-2. Run API pytest in CI with Postgres/pgvector.
-3. Add distributed production rate limits and tighter operational controls.
-4. Add retrieval evaluation fixtures and tune hybrid scoring against them.
-5. Add total counts and cursor pagination for large library datasets.
-6. Improve extension side-panel scope/folder controls.
-7. Add observability metrics and runbook-level deployment docs.
+2. Add distributed production rate limits and tighter operational controls.
+3. Implement the deterministic retrieval evaluation harness documented in `FUTURE_WORK.md`.
+4. Add total counts and cursor pagination for large library datasets.
+5. Improve extension side-panel scope/folder controls.
+6. Add observability metrics and runbook-level deployment docs.

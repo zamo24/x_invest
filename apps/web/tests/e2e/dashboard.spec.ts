@@ -69,6 +69,68 @@ async function mockDashboardApi(page: Page) {
       return;
     }
 
+    if (path === "/api/library/threads/thread-hbm") {
+      const requestedVersion = url.searchParams.get("version") || "2";
+      const isLatest = requestedVersion === "2";
+      await route.fulfill({
+        json: {
+          thread: {
+            id: "thread-hbm",
+            root_tweet_id: "100",
+            root_url: "https://x.com/semicapital/status/100",
+            title: "HBM thesis update",
+            captured_at: now,
+            capture_version: 2,
+            is_partial: false,
+            item_count: 1,
+            author_handles: ["semicapital"],
+            folder_id: "folder-hbm",
+            folder_name: "HBM",
+          },
+          selected_capture: {
+            id: isLatest ? "capture-2" : "capture-1",
+            capture_version: isLatest ? 2 : 1,
+            captured_at: now,
+            is_partial: !isLatest,
+            partial_reason: isLatest ? null : "Replies still loading",
+            item_count: 1,
+          },
+          captures: [
+            {
+              id: "capture-2",
+              capture_version: 2,
+              captured_at: now,
+              is_partial: false,
+              partial_reason: null,
+              item_count: 1,
+            },
+            {
+              id: "capture-1",
+              capture_version: 1,
+              captured_at: now,
+              is_partial: true,
+              partial_reason: "Replies still loading",
+              item_count: 1,
+            },
+          ],
+          items: [
+            {
+              id: "item-thread",
+              item_order: 0,
+              tweet_id: "100",
+              url: "https://x.com/semicapital/status/100",
+              author_handle: "semicapital",
+              author_name: "Semi Capital",
+              created_at: now,
+              captured_at: now,
+              text: isLatest ? "Latest HBM thesis snapshot." : "Original HBM thesis snapshot.",
+            },
+          ],
+        },
+      });
+      return;
+    }
+
     if (path === "/api/chat/threads" && request.method() === "GET") {
       await route.fulfill({ json: chatThreads });
       return;
@@ -184,4 +246,15 @@ test("chat dashboard sends a question and renders persisted cited response", asy
     page.getByText("Your saved source suggests HBM supply remains tight, although packaging capacity is improving."),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "https://x.com/semicapital/status/100" }).first()).toBeVisible();
+});
+
+test("thread detail switches between immutable capture versions", async ({ page }) => {
+  await mockDashboardApi(page);
+
+  await page.goto("/app/threads/thread-hbm");
+  await expect(page.getByText("Latest HBM thesis snapshot.")).toBeVisible();
+
+  await page.locator("select").selectOption("1");
+  await expect(page.getByText("Original HBM thesis snapshot.")).toBeVisible();
+  await expect(page.getByText(/Replies still loading/)).toBeVisible();
 });

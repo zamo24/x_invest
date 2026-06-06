@@ -9,13 +9,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { LibraryItem, LibraryThreadListItem } from "@/lib/types";
+import type { LibraryThreadListItem, ThreadCaptureItem, ThreadCaptureSummary } from "@/lib/types";
 
 type ThreadResponse = {
   thread: LibraryThreadListItem;
-  items: LibraryItem[];
+  selected_capture: ThreadCaptureSummary;
+  captures: ThreadCaptureSummary[];
+  items: ThreadCaptureItem[];
 };
 
 function formatDate(value: string | null) {
@@ -34,12 +37,14 @@ function formatDate(value: string | null) {
 export default function ThreadDetailPage() {
   const params = useParams<{ id: string }>();
   const [data, setData] = useState<ThreadResponse | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/library/threads/${params.id}`, { cache: "no-store" });
+        const query = selectedVersion ? `?version=${encodeURIComponent(selectedVersion)}` : "";
+        const res = await fetch(`/api/library/threads/${params.id}${query}`, { cache: "no-store" });
         if (!res.ok) {
           throw new Error("Failed to load thread");
         }
@@ -51,7 +56,7 @@ export default function ThreadDetailPage() {
     }
 
     void load();
-  }, [params.id]);
+  }, [params.id, selectedVersion]);
 
   if (error) {
     return (
@@ -96,17 +101,37 @@ export default function ThreadDetailPage() {
         }
       />
 
-      {data.thread.is_partial ? (
+      {data.selected_capture.is_partial ? (
         <Alert variant="warning">
           <AlertTitle>Partial capture</AlertTitle>
-          <AlertDescription>This thread snapshot is marked partial and may not include every reply.</AlertDescription>
+          <AlertDescription>
+            This thread snapshot is marked partial and may not include every reply.
+            {data.selected_capture.partial_reason ? ` ${data.selected_capture.partial_reason}` : ""}
+          </AlertDescription>
         </Alert>
       ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Thread Tweets</CardTitle>
-          <CardDescription>{data.items.length} saved tweets in this capture.</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Thread Tweets</CardTitle>
+              <CardDescription>
+                {data.items.length} saved tweets in capture v{data.selected_capture.capture_version} from{" "}
+                {formatDate(data.selected_capture.captured_at)}.
+              </CardDescription>
+            </div>
+            <div className="min-w-48">
+              <Select value={String(data.selected_capture.capture_version)} onChange={(event) => setSelectedVersion(event.target.value)}>
+                {data.captures.map((capture) => (
+                  <option key={capture.id} value={capture.capture_version}>
+                    v{capture.capture_version} · {capture.item_count} items
+                    {capture.is_partial ? " · partial" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {data.items.map((item, index) => (

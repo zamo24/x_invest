@@ -5,10 +5,16 @@ from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_any_authenticated_user
-from app.db.models import User, XFolder, XItem, XThread, XThreadItem
+from app.db.models import User, XFolder, XItem, XThread, XThreadCapture, XThreadCaptureItem, XThreadItem
 from app.db.session import get_db
 from app.schemas.folders import FolderAssignRequest, FolderAssignmentResponse, FolderCreateRequest, FolderResponse
-from app.schemas.ingest import LibraryItem, LibraryThreadListItem, ThreadDetailResponse
+from app.schemas.ingest import (
+    LibraryItem,
+    LibraryThreadListItem,
+    ThreadCaptureItem,
+    ThreadCaptureSummary,
+    ThreadDetailResponse,
+)
 
 router = APIRouter()
 
@@ -316,6 +322,7 @@ def list_threads(
 @router.get("/library/threads/{thread_id}", response_model=ThreadDetailResponse)
 def get_thread(
     thread_id: UUID,
+    version: int | None = Query(default=None, ge=1),
     user: User = Depends(get_any_authenticated_user),
     db: Session = Depends(get_db),
 ) -> ThreadDetailResponse:
@@ -343,14 +350,42 @@ def get_thread(
     if thread_row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
 
-    item_stmt = (
-        select(XItem, XFolder.name.label("folder_name"))
-        .join(XThreadItem, XThreadItem.item_id == XItem.id)
-        .outerjoin(XFolder, XFolder.id == XItem.folder_id)
-        .where(XThreadItem.thread_id == thread_id, XItem.user_id == user.id)
-        .order_by(XItem.captured_at.asc())
+    capture_counts = (
+        select(
+            XThreadCaptureItem.capture_id.label("capture_id"),
+            func.count(XThreadCaptureItem.item_order).label("item_count"),
+        )
+        .group_by(XThreadCaptureItem.capture_id)
+        .subquery()
     )
-    item_rows = db.execute(item_stmt).all()
+    captures = db.execute(
+        select(
+            XThreadCapture.id,
+            XThreadCapture.capture_version,
+            XThreadCapture.captured_at,
+            XThreadCapture.is_partial,
+            XThreadCapture.partial_reason,
+            func.coalesce(capture_counts.c.item_count, 0).label("item_count"),
+        )
+        .outerjoin(capture_counts, capture_counts.c.capture_id == XThreadCapture.id)
+        .where(XThreadCapture.thread_id == thread_id, XThreadCapture.user_id == user.id)
+        .order_by(XThreadCapture.capture_version.desc())
+    ).all()
+    if not captures:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread captures not found")
+
+    selected_capture_row = next(
+        (capture for capture in captures if capture.capture_version == (version or thread_row.capture_version)),
+        None,
+    )
+    if selected_capture_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread capture version not found")
+
+    item_rows = db.execute(
+        select(XThreadCaptureItem)
+        .where(XThreadCaptureItem.capture_id == selected_capture_row.id)
+        .order_by(XThreadCaptureItem.item_order.asc())
+    ).scalars().all()
 
     thread = LibraryThreadListItem(
         id=thread_row.id,
@@ -365,5 +400,37 @@ def get_thread(
         folder_id=thread_row.folder_id,
         folder_name=thread_row.folder_name,
     )
-    items = [_library_item(item=row.XItem, folder_name=row.folder_name) for row in item_rows]
-    return ThreadDetailResponse(thread=thread, items=items)
+    capture_summaries = [
+        ThreadCaptureSummary(
+            id=capture.id,
+            capture_version=capture.capture_version,
+            captured_at=capture.captured_at,
+            is_partial=capture.is_partial,
+            partial_reason=capture.partial_reason,
+            item_count=capture.item_count,
+        )
+        for capture in captures
+    ]
+    selected_capture = next(
+        capture for capture in capture_summaries if capture.capture_version == selected_capture_row.capture_version
+    )
+    items = [
+        ThreadCaptureItem(
+            id=item.item_id,
+            item_order=item.item_order,
+            tweet_id=item.tweet_id,
+            url=item.url,
+            author_handle=item.author_handle,
+            author_name=item.author_name,
+            created_at=item.created_at,
+            captured_at=item.captured_at,
+            text=item.text,
+        )
+        for item in item_rows
+    ]
+    return ThreadDetailResponse(
+        thread=thread,
+        selected_capture=selected_capture,
+        captures=capture_summaries,
+        items=items,
+    )

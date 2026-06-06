@@ -7,7 +7,7 @@ from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, get_auth_user
-from app.db.models import Chunk, XFolder, XItem, XThread, XThreadItem
+from app.db.models import Chunk, XFolder, XItem, XThread, XThreadCapture, XThreadCaptureItem, XThreadItem
 from app.db.session import get_db
 from app.schemas.ingest import IngestXRequest, IngestXResponse
 from app.services.embeddings import embed_many, embed_text
@@ -335,6 +335,40 @@ def ingest_x(
             db.add(XThreadItem(thread_id=thread.id, item_id=item.id))
 
         macro_text = build_thread_macro_chunk_text(items_for_request)
+        capture = XThreadCapture(
+            thread_id=thread.id,
+            user_id=user.id,
+            capture_version=thread.capture_version,
+            root_tweet_id=thread.root_tweet_id,
+            root_url=thread.root_url,
+            title=thread.title,
+            captured_at=thread.captured_at,
+            is_partial=thread.is_partial,
+            partial_reason=thread.partial_reason,
+            macro_chunk_text=macro_text or None,
+        )
+        db.add(capture)
+        db.flush()
+
+        for item_order, item in enumerate(items_for_request):
+            db.add(
+                XThreadCaptureItem(
+                    capture_id=capture.id,
+                    item_order=item_order,
+                    item_id=item.id,
+                    tweet_id=item.tweet_id,
+                    url=item.url,
+                    author_handle=item.author_handle,
+                    author_name=item.author_name,
+                    created_at=item.created_at,
+                    captured_at=item.captured_at,
+                    text=item.text,
+                    quoted_json=item.quoted_json,
+                    json_raw=item.json_raw,
+                    hash=item.hash,
+                )
+            )
+
         if macro_text:
             try:
                 thread_embedding = embed_text(macro_text)
