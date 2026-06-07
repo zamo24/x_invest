@@ -1,19 +1,18 @@
-const DEFAULT_API_BASE = "http://localhost:8000";
+importScripts("settings-core.js");
 
-async function readSettings() {
-  const { xic_pat, xic_api_base } = await chrome.storage.sync.get(["xic_pat", "xic_api_base"]);
-  return {
-    pat: xic_pat || "",
-    apiBase: xic_api_base || DEFAULT_API_BASE,
-  };
-}
+const settingsCore = globalThis.XicSettingsCore;
 
 async function apiRequest(path, options = {}) {
-  const { method = "POST", payload = null } = options;
-  const { pat, apiBase } = await readSettings();
+  const { method = "POST", payload = null, settings = null } = options;
+  const resolvedSettings = settings || (await settingsCore.readSettings());
+  const pat = settingsCore.validatePat(resolvedSettings.pat);
+  const apiBase = settingsCore.normalizeApiBase(resolvedSettings.apiBase);
 
-  if (!pat) {
-    throw new Error("No PAT configured. Open extension options and add your token.");
+  const hasPermission = await chrome.permissions.contains({
+    origins: [settingsCore.permissionOrigin(apiBase)],
+  });
+  if (!hasPermission) {
+    throw new Error("The extension does not have permission for this API origin. Open extension options and save settings.");
   }
 
   const headers = {
@@ -24,15 +23,20 @@ async function apiRequest(path, options = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${apiBase}${path}`, {
-    method,
-    headers,
-    body: payload !== null ? JSON.stringify(payload) : undefined,
-  });
+  let response;
+  try {
+    response = await fetch(`${apiBase}${path}`, {
+      method,
+      headers,
+      body: payload !== null ? JSON.stringify(payload) : undefined,
+    });
+  } catch (error) {
+    throw new Error(`Could not reach the configured API. Verify the URL, network, and API CORS settings. (${error})`);
+  }
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.detail || "API request failed");
+    throw new Error(settingsCore.apiErrorMessage(response.status, data));
   }
 
   return data;
@@ -75,6 +79,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message?.type === "LIST_FOLDERS") {
       const data = await apiRequest("/v1/library/folders", { method: "GET" });
+      sendResponse({ ok: true, data });
+      return;
+    }
+
+    if (message?.type === "TEST_CONNECTION") {
+      const pat = settingsCore.validatePat(message?.payload?.pat);
+      const apiBase = settingsCore.normalizeApiBase(message?.payload?.api_base);
+      const data = await apiRequest("/v1/me", {
+        method: "GET",
+        settings: { pat, apiBase },
+      });
       sendResponse({ ok: true, data });
       return;
     }

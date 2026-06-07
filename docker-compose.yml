@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile
     environment:
       APP_VERSION: ${APP_VERSION:-0.1.0}
+      APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/copilot
       TOKEN_PEPPER: ${TOKEN_PEPPER:-dev-token-pepper-change-me}
@@ -33,7 +34,8 @@ services:
       RATE_LIMIT_INGEST_REQUESTS: ${RATE_LIMIT_INGEST_REQUESTS:-60}
       RATE_LIMIT_TOKEN_REQUESTS: ${RATE_LIMIT_TOKEN_REQUESTS:-30}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      CORS_ALLOW_ORIGIN_REGEX: ${CORS_ALLOW_ORIGIN_REGEX:-^chrome-extension://[a-z]{32}$}
+      CORS_ALLOW_ORIGIN_REGEX: ${CORS_ALLOW_ORIGIN_REGEX-^chrome-extension://[a-z]{32}$}
+      CORS_EXTENSION_IDS: ${CORS_EXTENSION_IDS:-}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
       CORS_ALLOW_METHODS: ${CORS_ALLOW_METHODS:-GET,POST,PUT,PATCH,DELETE,OPTIONS}
       CORS_ALLOW_HEADERS: ${CORS_ALLOW_HEADERS:-Authorization,Content-Type}

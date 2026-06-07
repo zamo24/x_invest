@@ -9,10 +9,10 @@
     "http://localhost:8000/*",
     "http://127.0.0.1:8000/*"
   ],
+  "optional_host_permissions": ["https://*/*"],
   "options_page": "options.html",
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "action": {
     "default_title": "X Investor Copilot"

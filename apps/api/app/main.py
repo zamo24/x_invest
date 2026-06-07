@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import api_router
 from app.core.config import get_settings
+from app.core.cors import parse_csv, resolve_cors_origin_regex, resolve_cors_origins, validate_cors_settings
 from app.core.observability import RequestContextMiddleware, configure_logging, log_unhandled_exception
 from app.core.rate_limit import RateLimitMiddleware
 
@@ -12,28 +13,15 @@ configure_logging(settings.log_level)
 
 app = FastAPI(title=settings.app_name)
 
-
-def _parse_csv(value: str) -> list[str]:
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
-def _validate_cors_settings() -> None:
-    allow_origins = _parse_csv(settings.cors_allow_origins)
-    if settings.cors_allow_credentials and "*" in allow_origins:
-        raise RuntimeError("Invalid CORS config: wildcard origin is not allowed when credentials are enabled.")
-    if not allow_origins and not settings.cors_allow_origin_regex:
-        raise RuntimeError("Invalid CORS config: set at least one CORS origin or origin regex.")
-
-
-_validate_cors_settings()
+validate_cors_settings(settings)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_parse_csv(settings.cors_allow_origins),
-    allow_origin_regex=settings.cors_allow_origin_regex,
+    allow_origins=resolve_cors_origins(settings),
+    allow_origin_regex=resolve_cors_origin_regex(settings),
     allow_credentials=settings.cors_allow_credentials,
-    allow_methods=_parse_csv(settings.cors_allow_methods),
-    allow_headers=_parse_csv(settings.cors_allow_headers),
+    allow_methods=parse_csv(settings.cors_allow_methods),
+    allow_headers=parse_csv(settings.cors_allow_headers),
 )
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestContextMiddleware)

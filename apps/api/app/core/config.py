@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "X Investor Copilot API"
-    app_env: str = "development"
+    app_env: str = Field(default="development", alias="APP_ENV")
     app_version: str = Field(default="0.1.0", alias="APP_VERSION")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
@@ -33,6 +33,7 @@ class Settings(BaseSettings):
         default=r"^chrome-extension://[a-z]{32}$",
         alias="CORS_ALLOW_ORIGIN_REGEX",
     )
+    cors_extension_ids: str = Field(default="", alias="CORS_EXTENSION_IDS")
     cors_allow_credentials: bool = Field(default=True, alias="CORS_ALLOW_CREDENTIALS")
     cors_allow_methods: str = Field(default="GET,POST,PUT,PATCH,DELETE,OPTIONS", alias="CORS_ALLOW_METHODS")
     cors_allow_headers: str = Field(default="Authorization,Content-Type", alias="CORS_ALLOW_HEADERS")

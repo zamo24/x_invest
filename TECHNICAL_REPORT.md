@@ -215,6 +215,9 @@ Primary files:
 Capabilities:
 
 - Configure PAT and API base URL.
+- Store PAT settings locally, migrate legacy sync settings, and validate production HTTPS URLs.
+- Request optional permission only for the exact configured production API origin.
+- Test authenticated API connectivity from extension options.
 - Inject X toolbar with folder selector.
 - Save tweet, thread, or article.
 - Open side panel.
@@ -229,6 +232,7 @@ Implemented hardening:
 - API verifies Clerk JWT issuer, signature, optional audience, and leeway.
 - PATs are random, prefix-validated, HMAC-hashed, expirable, and revocable.
 - API rejects wildcard CORS origins when credentials are enabled.
+- Production API configuration rejects broad extension-origin regexes and supports exact published extension IDs.
 - API emits request IDs and structured access/error logs.
 - BYOK API keys are encrypted with Fernet-compatible key derivation.
 - In-process fixed-window rate limits protect chat, ingest, and token routes.
@@ -237,10 +241,9 @@ Remaining production considerations:
 
 - Configure real Clerk issuer/JWKS/audience values before exposing the API.
 - Use a strong `TOKEN_PEPPER` and `BYOK_ENCRYPTION_KEY`.
-- Restrict CORS origins and extension IDs to production values.
+- Follow `docs/extension-production.md` when publishing or rotating the extension/API origin.
 - Tune rate limits/quotas for production traffic patterns.
 - Use a distributed rate limiter or API gateway when running more than one API instance.
-- Consider storing extension PATs in `chrome.storage.local` or documenting sync-storage tradeoffs.
 
 ## 11. Tests And Validation
 

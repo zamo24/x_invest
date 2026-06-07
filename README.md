@@ -69,10 +69,12 @@ Optional retrieval tuning:
 
 - `CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`
 - `CORS_ALLOW_ORIGIN_REGEX=^chrome-extension://[a-z]{32}$`
+- `CORS_EXTENSION_IDS=` (set exact published extension IDs in production)
 - `CORS_ALLOW_METHODS=GET,POST,PUT,PATCH,DELETE,OPTIONS`
 - `CORS_ALLOW_HEADERS=Authorization,Content-Type`
 - `CORS_ALLOW_CREDENTIALS=true`
 - Do not use `*` in `CORS_ALLOW_ORIGINS` when credentials are enabled.
+- In production, set `APP_ENV=production`, clear `CORS_ALLOW_ORIGIN_REGEX`, and configure exact `CORS_EXTENSION_IDS`.
 
 6. Observability defaults:
 
@@ -260,11 +262,14 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 3. Click **Load unpacked**
 4. Select `apps/extension`
 5. Open extension options, paste PAT and API base URL (`http://localhost:8000`)
-6. Visit `https://x.com/*`, use:
+6. Save settings and use **Test Connection** to verify authentication and connectivity.
+7. Visit `https://x.com/*`, use:
    - `Save Tweet`
    - `Save Thread`
    - `Save Article` (on `x.com/i/article/*` pages)
    - `Open Copilot`
+
+Production extension configuration and exact-origin CORS setup are documented in `docs/extension-production.md`.
 
 ## Clerk Notes
 
@@ -283,6 +288,8 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 - The API validates source-grounded claims against cited snippets and falls back to a conservative local response when validation fails.
 - PAT handling validates token format (`xic_pat_...`) before DB lookup.
 - PAT auth rejects revoked and expired tokens (`expires_at`).
+- Extension PATs are stored in `chrome.storage.local`; legacy sync settings migrate automatically.
+- Production API startup rejects broad extension-origin CORS regexes and accepts exact `CORS_EXTENSION_IDS`.
 - `/health` now returns environment/version metadata and current `request_id`.
 - Thread recaptures dedupe on root tweet identity, increment `capture_version`, and preserve immutable historical snapshots.
 - `FUTURE_WORK.md` documents the planned deterministic retrieval evaluation harness.
