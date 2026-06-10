@@ -1,3 +1,3 @@
-from app.main import app
+"""Investor Research Copilot API package."""
 
 __all__ = ["app"]

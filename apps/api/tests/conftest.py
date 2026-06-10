@@ -10,6 +10,14 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+os.environ["APP_ENV"] = "test"
+os.environ["EMBEDDING_MODEL"] = "local-hash-v1"
+os.environ["CHAT_MODEL"] = "local-grounded-v1"
+os.environ["BYOK_ENCRYPTION_KEY"] = "pytest-byok-encryption-secret"
+os.environ["X_TOKEN_ENCRYPTION_KEY"] = "pytest-x-token-encryption-secret"
+os.environ["X_CLIENT_ID"] = "pytest-x-client"
+os.environ["X_CLIENT_SECRET"] = "pytest-x-secret"
+
 from app.core.config import get_settings
 from app.core.security import fingerprint_token, hash_token
 from app.db.models import ApiToken, User
@@ -20,7 +28,12 @@ from app.db.session import SessionLocal
 def configure_test_models() -> None:
     os.environ["EMBEDDING_MODEL"] = "local-hash-v1"
     os.environ["CHAT_MODEL"] = "local-grounded-v1"
+    os.environ["APP_ENV"] = "test"
     os.environ["BYOK_ENCRYPTION_KEY"] = "pytest-byok-encryption-secret"
+    os.environ["X_TOKEN_ENCRYPTION_KEY"] = "pytest-x-token-encryption-secret"
+    os.environ["X_CLIENT_ID"] = "pytest-x-client"
+    os.environ["X_CLIENT_SECRET"] = "pytest-x-secret"
+    os.environ["X_REDIRECT_URI"] = "http://localhost:8000/v1/integrations/x/callback"
     get_settings.cache_clear()
 
 

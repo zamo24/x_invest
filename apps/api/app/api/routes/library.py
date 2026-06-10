@@ -50,6 +50,9 @@ def _library_item(item: XItem, folder_name: str | None) -> LibraryItem:
         title=title,
         folder_id=item.folder_id,
         folder_name=folder_name,
+        content_status=item.content_status,
+        last_verified_at=item.last_verified_at,
+        unavailable_reason=item.unavailable_reason,
     )
 
 

@@ -75,6 +75,8 @@ def _tweet_chunk_metadata(item: XItem) -> dict[str, str | None]:
         "author_handle": item.author_handle,
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "source_type": "x_item",
+        "content_status": item.content_status,
+        "last_verified_at": item.last_verified_at.isoformat() if item.last_verified_at else None,
     }
 
 

@@ -88,6 +88,9 @@ class LibraryItem(BaseModel):
     title: str | None = None
     folder_id: UUID | None
     folder_name: str | None = None
+    content_status: str = "pending_verification"
+    last_verified_at: datetime | None = None
+    unavailable_reason: str | None = None
 
 
 class ThreadCaptureSummary(BaseModel):

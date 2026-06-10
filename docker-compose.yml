@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile
     environment:
       APP_VERSION: ${APP_VERSION:-0.1.0}
+      APP_NAME: ${APP_NAME:-Investor Research Copilot API}
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/copilot
@@ -60,6 +61,15 @@ services:
       HOSTED_CHAT_MODELS: ${HOSTED_CHAT_MODELS:-gpt-4o-mini,gpt-4.1-mini,gpt-5-mini,gpt-5.2}
       BYOK_ENCRYPTION_KEY: ${BYOK_ENCRYPTION_KEY:-dev-byok-encryption-key-change-me}
       EMBEDDING_DIM: ${EMBEDDING_DIM:-256}
+      X_CLIENT_ID: ${X_CLIENT_ID:-}
+      X_CLIENT_SECRET: ${X_CLIENT_SECRET:-}
+      X_REDIRECT_URI: ${X_REDIRECT_URI:-http://localhost:8000/v1/integrations/x/callback}
+      X_TOKEN_ENCRYPTION_KEY: ${X_TOKEN_ENCRYPTION_KEY:-dev-x-token-encryption-key-change-me}
+      X_API_BASE_URL: ${X_API_BASE_URL:-https://api.x.com}
+      X_CONTENT_REVALIDATE_HOURS: ${X_CONTENT_REVALIDATE_HOURS:-24}
+      X_MONTHLY_POST_READ_BUDGET: ${X_MONTHLY_POST_READ_BUDGET:-10000}
+      X_BOOKMARK_SYNC_POST_LIMIT: ${X_BOOKMARK_SYNC_POST_LIMIT:-1000}
+      X_INTEGRATION_SETTINGS_URL: ${X_INTEGRATION_SETTINGS_URL:-http://localhost:3000/app/settings/x}
     command: /bin/sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
@@ -81,6 +91,7 @@ services:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
       NEXT_PUBLIC_BETA_APPLICATION_URL: ${NEXT_PUBLIC_BETA_APPLICATION_URL:-}
       NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL:-}
+      NEXT_PUBLIC_PRODUCT_NAME: ${NEXT_PUBLIC_PRODUCT_NAME:-Investor Research Copilot}
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "300"

@@ -28,6 +28,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
     chat_threads: Mapped[list[ChatThread]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    x_integration: Mapped[XIntegration | None] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class ApiToken(Base):
@@ -86,6 +89,79 @@ class XItem(Base):
     quoted_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     json_raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    external_source: Mapped[str] = mapped_column(String(30), nullable=False, default="x", server_default="x")
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    content_status: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="pending_verification", server_default="pending_verification", index=True
+    )
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_content_change_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    unavailable_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class XIntegration(Base):
+    __tablename__ = "x_integrations"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    x_user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    x_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    access_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    granted_scopes: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="connected", server_default="connected")
+    bookmark_sync_cursor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_bookmark_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_bookmark_sync_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="x_integration")
+
+
+class XOAuthState(Base):
+    __tablename__ = "x_oauth_states"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    state_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    pkce_verifier_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class XApiUsage(Base):
+    __tablename__ = "x_api_usage"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    operation: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    requested_post_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    returned_post_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class XBookmarkFolderMapping(Base):
+    __tablename__ = "x_bookmark_folder_mappings"
+    __table_args__ = (UniqueConstraint("user_id", "x_folder_id", name="uq_x_bookmark_folder_mapping"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    x_folder_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    x_folder_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    local_folder_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("x_folders.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
 
 class XThread(Base):

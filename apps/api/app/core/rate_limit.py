@@ -51,7 +51,7 @@ class FixedWindowRateLimiter:
 def _route_group(path: str) -> str | None:
     if path == "/v1/chat" or path.startswith("/v1/chat/"):
         return "chat"
-    if path == "/v1/ingest/x":
+    if path in {"/v1/ingest/x", "/v1/sources/x", "/v1/integrations/x/bookmarks/sync"}:
         return "ingest"
     if path == "/v1/tokens" or path.startswith("/v1/tokens/"):
         return "tokens"

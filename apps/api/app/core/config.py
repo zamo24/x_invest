@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "X Investor Copilot API"
+    app_name: str = Field(default="Investor Research Copilot API", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     app_version: str = Field(default="0.1.0", alias="APP_VERSION")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
@@ -57,6 +57,21 @@ class Settings(BaseSettings):
     embedding_max_chars: int = Field(default=24000, alias="EMBEDDING_MAX_CHARS")
     embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
     byok_encryption_key: str | None = Field(default=None, alias="BYOK_ENCRYPTION_KEY")
+    x_client_id: str | None = Field(default=None, alias="X_CLIENT_ID")
+    x_client_secret: str | None = Field(default=None, alias="X_CLIENT_SECRET")
+    x_redirect_uri: str = Field(
+        default="http://localhost:8000/v1/integrations/x/callback",
+        alias="X_REDIRECT_URI",
+    )
+    x_token_encryption_key: str | None = Field(default=None, alias="X_TOKEN_ENCRYPTION_KEY")
+    x_api_base_url: str = Field(default="https://api.x.com", alias="X_API_BASE_URL")
+    x_content_revalidate_hours: int = Field(default=24, alias="X_CONTENT_REVALIDATE_HOURS")
+    x_monthly_post_read_budget: int = Field(default=10000, alias="X_MONTHLY_POST_READ_BUDGET")
+    x_bookmark_sync_post_limit: int = Field(default=1000, alias="X_BOOKMARK_SYNC_POST_LIMIT")
+    x_integration_settings_url: str = Field(
+        default="http://localhost:3000/app/settings/x",
+        alias="X_INTEGRATION_SETTINGS_URL",
+    )
     embedding_dim: int = Field(default=256, alias="EMBEDDING_DIM")
     retrieval_oversample_multiplier: int = Field(default=6, alias="RETRIEVAL_OVERSAMPLE_MULTIPLIER")
     retrieval_min_candidates: int = Field(default=30, alias="RETRIEVAL_MIN_CANDIDATES")

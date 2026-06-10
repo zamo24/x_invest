@@ -7,7 +7,7 @@ import re
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, case, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -200,7 +200,12 @@ def retrieve_chunks(
         top_k * max(1, settings.retrieval_oversample_multiplier),
         max(top_k, settings.retrieval_min_candidates),
     )
-    stmt = stmt.order_by("distance").limit(candidate_limit)
+    status_rank = case(
+        (Chunk.metadata_json["content_status"].astext == "active", 0),
+        (Chunk.metadata_json["content_status"].astext.in_(["unavailable", "deleted", "protected", "unsupported"]), 2),
+        else_=1,
+    )
+    stmt = stmt.order_by(status_rank.asc(), "distance").limit(candidate_limit)
 
     rows = db.execute(stmt).all()
 
