@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "X Investor Copilot",
-  description: "Save X posts/threads and chat over your personal source-grounded corpus.",
+  description: "Save investment research from X, organize it, and ask source-cited questions later.",
 };
 
 const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;

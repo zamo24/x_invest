@@ -271,6 +271,17 @@ curl -X PUT http://localhost:8000/v1/model-settings \
 
 Production extension configuration and exact-origin CORS setup are documented in `docs/extension-production.md`.
 
+## Go-To-Market
+
+The initial positioning, concierge beta process, customer acquisition cadence, monetization test, and 90-day scorecard
+are documented in `docs/go-to-market-plan.md`.
+
+Public launch configuration:
+
+- `NEXT_PUBLIC_BETA_APPLICATION_URL` - optional POST endpoint for the private beta application form.
+- `NEXT_PUBLIC_SUPPORT_EMAIL` - support and privacy contact shown on public pages.
+- Review the draft privacy policy and terms with qualified counsel before public launch.
+
 ## Clerk Notes
 
 - Web routes under `/app/*` are protected by Clerk middleware.
