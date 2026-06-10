@@ -1,4 +1,4 @@
-importScripts("settings-core.js");
+importScripts("settings-core.js", "x-url-core.js");
 
 const settingsCore = globalThis.XicSettingsCore;
 
@@ -48,8 +48,14 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
-    if (message?.type === "INGEST_X") {
-      const data = await apiRequest("/v1/ingest/x", { method: "POST", payload: message.payload });
+    if (message?.type === "SAVE_CURRENT_X") {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const payload = globalThis.XicXUrlCore.buildSavePayload(
+        tab?.url,
+        message?.payload?.folder_id,
+        message?.payload?.mode,
+      );
+      const data = await apiRequest("/v1/sources/x", { method: "POST", payload });
       sendResponse({ ok: true, data });
       return;
     }

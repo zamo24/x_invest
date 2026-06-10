@@ -22,7 +22,12 @@
   </head>
   <body>
     <div class="wrap">
-      <h3>Investor Copilot</h3>
+      <h3>Investor Research Copilot</h3>
+      <h4>Save current X post</h4>
+      <select id="save-folder"><option value="">No folder</option></select>
+      <button id="save-post">Save current post</button>
+      <button id="save-thread" class="ghost">Save author thread, best effort</button>
+      <p id="save-status"></p>
       <select id="chat-thread"></select>
       <button id="new-thread" class="ghost">Start New Chat Thread</button>
       <textarea id="message">Summarize what I saved about HBM supply and Micron.</textarea>
@@ -34,6 +39,6 @@
       <h4>Sources</h4>
       <ul id="sources"></ul>
     </div>
-    <script src="sidepanel.js"></script>
+      <script src="sidepanel.js"></script>
   </body>
 </html>

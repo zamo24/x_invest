@@ -1,11 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "X Investor Copilot",
-  "description": "Save tweets/threads from X and chat over your personal corpus.",
+  "name": "Investor Research Copilot",
+  "description": "Save X post URLs through the official integration and chat over your research library.",
   "version": "0.1.0",
-  "permissions": ["storage", "activeTab", "scripting", "sidePanel"],
+  "permissions": ["storage", "activeTab", "sidePanel"],
   "host_permissions": [
-    "https://x.com/*",
     "http://localhost:8000/*",
     "http://127.0.0.1:8000/*"
   ],
@@ -15,16 +14,9 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "X Investor Copilot"
+    "default_title": "Investor Research Copilot"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["https://x.com/*"],
-      "js": ["capture-core.js", "content-script.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  }
 }

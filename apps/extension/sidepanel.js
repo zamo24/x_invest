@@ -6,9 +6,53 @@ const sourcesEl = document.getElementById("sources");
 const chatThreadSelect = document.getElementById("chat-thread");
 const newThreadButton = document.getElementById("new-thread");
 const historyEl = document.getElementById("history");
+const saveFolderEl = document.getElementById("save-folder");
+const savePostButton = document.getElementById("save-post");
+const saveThreadButton = document.getElementById("save-thread");
+const saveStatusEl = document.getElementById("save-status");
 
 let selectedChatThreadId = "";
 let chatThreads = [];
+
+function setSaveStatus(message, isError = false) {
+  saveStatusEl.textContent = message;
+  saveStatusEl.className = isError ? "error" : "";
+}
+
+function sendMessage(message) {
+  return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+}
+
+async function loadFolders() {
+  const response = await sendMessage({ type: "LIST_FOLDERS" });
+  if (!response?.ok) {
+    setSaveStatus(response?.error || "Could not load folders.", true);
+    return;
+  }
+  for (const folder of response.data || []) {
+    const option = document.createElement("option");
+    option.value = folder.id;
+    option.textContent = folder.name;
+    saveFolderEl.appendChild(option);
+  }
+}
+
+async function saveCurrent(mode) {
+  setSaveStatus(mode === "author_thread" ? "Reconstructing author thread..." : "Saving post...");
+  const response = await sendMessage({
+    type: "SAVE_CURRENT_X",
+    payload: { folder_id: saveFolderEl.value || null, mode },
+  });
+  if (!response?.ok) {
+    setSaveStatus(response?.error || "Save failed. Connect X in dashboard settings and try again.", true);
+    return;
+  }
+  const partial = response.data?.is_partial ? ` Partial: ${response.data?.partial_reason || "X could not guarantee completeness."}` : "";
+  setSaveStatus(`Saved.${partial}`);
+}
+
+savePostButton.addEventListener("click", () => void saveCurrent("post"));
+saveThreadButton.addEventListener("click", () => void saveCurrent("author_thread"));
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -197,4 +241,4 @@ askButton.addEventListener("click", async () => {
   );
 });
 
-void refreshThreadsAndHistory();
+void Promise.all([loadFolders(), refreshThreadsAndHistory()]);

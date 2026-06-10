@@ -38,7 +38,12 @@
   }
 
   function apiErrorMessage(status, payload) {
-    const detail = typeof payload?.detail === "string" ? payload.detail : "";
+    const detail =
+      typeof payload?.detail === "string"
+        ? payload.detail
+        : typeof payload?.detail?.message === "string"
+          ? payload.detail.message
+          : "";
     if (status === 401) {
       return "Authentication failed. Create a new extension PAT in the dashboard and update these settings.";
     }
@@ -46,7 +51,13 @@
       return "The API denied this extension request. Verify the production extension ID is allowed by API CORS.";
     }
     if (status === 429) {
-      return "The API rate limit was reached. Wait briefly and try again.";
+      return detail || "The X API rate or configured usage budget was reached. Wait or review dashboard usage.";
+    }
+    if (status === 409) {
+      return detail || "Connect your X account in dashboard settings before saving.";
+    }
+    if (status === 422) {
+      return detail || "This is not a supported X post URL.";
     }
     return detail || `API request failed with status ${status}.`;
   }
