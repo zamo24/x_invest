@@ -18,7 +18,7 @@ A major evidence gap is that `docs/PRODUCT_BREIF.md` is empty, and "BRIEF" is mi
 
 ## 1. Product Summary
 
-X Investor Copilot is a personal research-memory product for active retail investors:
+Investor Research Copilot is a personal research-memory product for active retail investors:
 
 - Save tweets, visible threads, and X articles through a Chrome extension.
 - Organize saved content into folders.
@@ -44,7 +44,7 @@ It lacks the operational reliability and customer-management capabilities expect
 
 ## 3. What Works Today
 
-- Tweet, visible-thread, and article DOM extraction.
+- Official X API post lookup, bookmark sync, and best-effort author-thread reconstruction.
 - Ingestion, deduplication, recapture, embeddings, and storage.
 - Folder creation and assignment.
 - Library browsing, filtering, and search.
@@ -97,7 +97,7 @@ Code quality is respectable for an alpha. The architecture is understandable, an
 Primary risks:
 
 - Business logic is concentrated in large synchronous route handlers.
-- X capture depends on unstable DOM selectors and heuristics.
+- X ingestion depends on approved API access, endpoint availability, rate limits, and usage budget.
 - Duplicate compose files can drift.
 - Search uses broad SQL `LIKE` queries and offset pagination.
 - No retrieval-quality benchmark exists.
@@ -131,7 +131,7 @@ Risks:
 
 The product depends on:
 
-- X's frequently changing DOM.
+- X API access-tier, policy, and billing changes.
 - Chrome extension permissions and Web Store approval.
 - Clerk authentication.
 - PostgreSQL/pgvector.
@@ -169,7 +169,7 @@ A concierge paid pilot could start sooner using manual onboarding and hosted pay
 
 ## 11. Reasons This Project Could Fail
 
-- X DOM changes repeatedly break capture.
+- X API access, policy, or billing changes can restrict ingestion.
 - Captured threads include unrelated replies or omit important content.
 - Users consider X bookmarks good enough.
 - Chat over saved tweets is interesting once but does not create recurring value.
@@ -213,7 +213,7 @@ For **Maintenance burden**, `10` means very burdensome.
 |---|---:|---|
 | Technical feasibility | **8/10** | Core system exists; capture reliability is the largest technical unknown. |
 | Speed to paid MVP | **7/10** | A concierge paid pilot is achievable quickly. |
-| Maintenance burden | **7/10** | Three applications plus unstable X DOM and external integrations. |
+| Maintenance burden | **7/10** | Three applications plus X API, OAuth, compliance lifecycle, and external integrations. |
 | Differentiation from commodity AI wrappers | **6/10** | Capture, citations, and snapshots help; historical AI comparison is incomplete. |
 | Ease of explaining value proposition | **8/10** | "Never lose an investment thesis saved from X" is clear. |
 | Ability to sell to a narrow customer segment | **7/10** | The ICP is specific and reachable, but willingness to pay is unproven. |

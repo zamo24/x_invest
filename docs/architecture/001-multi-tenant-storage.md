@@ -5,7 +5,7 @@
 
 ## Context
 
-X Investor Copilot currently stores all users in one PostgreSQL database using shared tables with a `user_id`
+Investor Research Copilot currently stores all users in one PostgreSQL database using shared tables with a `user_id`
 tenant key. PostgreSQL is also the vector store through pgvector.
 
 The primary scaling concern is not shared PostgreSQL by itself. It is maintaining tenant isolation and efficient

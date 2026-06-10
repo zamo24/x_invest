@@ -61,7 +61,7 @@ export default function ThreadDetailPage() {
   if (error) {
     return (
       <section className="space-y-6">
-        <PageHeader title="Thread" description="Inspect all tweets captured for a specific thread snapshot." />
+        <PageHeader title="Thread" description="Inspect all posts captured for a specific thread snapshot." />
         <Alert variant="destructive">
           <AlertTitle>Failed to load thread</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -73,7 +73,7 @@ export default function ThreadDetailPage() {
   if (!data) {
     return (
       <section className="space-y-6">
-        <PageHeader title="Thread" description="Inspect all tweets captured for a specific thread snapshot." />
+        <PageHeader title="Thread" description="Inspect all posts captured for a specific thread snapshot." />
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-1/3" />
@@ -93,7 +93,7 @@ export default function ThreadDetailPage() {
     <section className="space-y-6">
       <PageHeader
         title={data.thread.title}
-        description="Inspect all tweets captured for this thread snapshot."
+        description="Inspect all posts captured for this thread snapshot."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href="/app/library">Back to library</Link>
@@ -115,9 +115,9 @@ export default function ThreadDetailPage() {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>Thread Tweets</CardTitle>
+              <CardTitle>Thread Posts</CardTitle>
               <CardDescription>
-                {data.items.length} saved tweets in capture v{data.selected_capture.capture_version} from{" "}
+                {data.items.length} saved posts in capture v{data.selected_capture.capture_version} from{" "}
                 {formatDate(data.selected_capture.captured_at)}.
               </CardDescription>
             </div>

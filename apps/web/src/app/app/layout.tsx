@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppNav } from "@/components/app-nav";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { PRODUCT_NAME } from "@/lib/product";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link href="/app/library" className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-base">
-              X Investor Copilot
+              {PRODUCT_NAME}
             </Link>
             <Separator orientation="vertical" className="hidden h-5 sm:block" />
             <Badge variant="outline" className="hidden sm:inline-flex">

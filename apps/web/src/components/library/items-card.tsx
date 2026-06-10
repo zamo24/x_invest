@@ -60,7 +60,7 @@ export function ItemsCard({
     <Card className="flex h-full max-h-[70vh] flex-col">
       <CardHeader>
         <CardTitle>Latest Saved Items</CardTitle>
-        <CardDescription>Recent tweet and article captures available for retrieval and chat.</CardDescription>
+        <CardDescription>Recent X posts and legacy link-only or unsupported article records.</CardDescription>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {items.length === 0 ? (
@@ -80,8 +80,9 @@ export function ItemsCard({
                     {item.source_kind === "article" ? item.title || "Untitled article" : `@${item.author_handle}`}
                   </a>
                   <Badge variant="outline">{formatDate(item.created_at ?? item.captured_at)}</Badge>
-                  <Badge variant="outline">{item.source_kind === "article" ? "Article" : "Tweet"}</Badge>
+                  <Badge variant="outline">{item.source_kind === "article" ? "Article link" : "Post"}</Badge>
                   {item.folder_name ? <Badge variant="secondary">{item.folder_name}</Badge> : null}
+                  <Badge variant={item.content_status === "active" ? "secondary" : "outline"}>{item.content_status}</Badge>
                 </div>
                 {item.source_kind === "article" && item.author_handle !== "unknown" ? (
                   <p className="text-xs text-slate-500">by @{item.author_handle}</p>
@@ -108,6 +109,7 @@ export function ItemsCard({
                 >
                   {item.text}
                 </p>
+                {item.unavailable_reason ? <p className="text-xs text-amber-700">{item.unavailable_reason}</p> : null}
                 {item.text.length > 220 ? (
                   <Button
                     type="button"

@@ -5,11 +5,51 @@ const now = "2026-03-02T16:00:00.000Z";
 async function mockDashboardApi(page: Page) {
   let chatThreads: unknown[] = [];
   let chatMessages: unknown[] = [];
+  let xConnected = false;
 
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
+
+    if (path === "/api/integrations/x/status") {
+      await route.fulfill({
+        json: {
+          connected: xConnected,
+          status: xConnected ? "connected" : "disconnected",
+          x_user_id: xConnected ? "x-user" : null,
+          x_username: xConnected ? "researcher" : null,
+          granted_scopes: xConnected ? ["tweet.read", "users.read", "bookmark.read", "offline.access"] : [],
+          connected_at: xConnected ? now : null,
+          last_bookmark_sync_at: null,
+          last_bookmark_sync_result: null,
+          monthly_post_reads: 12,
+          monthly_post_read_budget: 1000,
+        },
+      });
+      return;
+    }
+
+    if (path === "/api/integrations/x/authorize") {
+      await route.fulfill({ json: { authorization_url: "/app/settings/x?connected=1", expires_at: now } });
+      return;
+    }
+
+    if (path === "/api/integrations/x" && request.method() === "DELETE") {
+      xConnected = false;
+      await route.fulfill({ json: { status: "disconnected" } });
+      return;
+    }
+
+    if (path === "/api/integrations/x/bookmarks/sync") {
+      await route.fulfill({ json: { fetched: 4, created: 2, updated: 1, unavailable: 0, failed: 0, folders_mapped: 1, partial: false } });
+      return;
+    }
+
+    if (path === "/api/sources/x") {
+      await route.fulfill({ json: { item_ids: ["saved"], created: 1, updated: 0, is_partial: false } });
+      return;
+    }
 
     if (path === "/api/library/folders") {
       await route.fulfill({
@@ -229,7 +269,7 @@ test("library dashboard renders saved threads, items, and filters", async ({ pag
   await expect(page.getByText("HBM Supply Outlook")).toBeVisible();
   await expect(page.getByText("v2")).toBeVisible();
 
-  await page.getByPlaceholder("Search text, title, URL, author, tweet ID...").fill("supply");
+  await page.getByPlaceholder("Search text, title, URL, author, post ID...").fill("supply");
   await expect(page.getByText("HBM Supply Outlook")).toBeVisible();
 });
 
@@ -257,4 +297,31 @@ test("thread detail switches between immutable capture versions", async ({ page 
   await page.locator("select").selectOption("1");
   await expect(page.getByText("Original HBM thesis snapshot.")).toBeVisible();
   await expect(page.getByText(/Replies still loading/)).toBeVisible();
+});
+
+test("X integration settings supports bookmark sync, save-by-URL, and disconnect", async ({ page }) => {
+  await mockDashboardApi(page);
+  await page.goto("/app/settings/x");
+  await expect(page.getByRole("heading", { name: "X Integration" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect X" })).toBeVisible();
+
+  // Re-register with connected state by intercepting status directly for the operational controls.
+  await page.route("**/api/integrations/x/status", (route) =>
+    route.fulfill({
+      json: {
+        connected: true,
+        status: "connected",
+        x_username: "researcher",
+        granted_scopes: ["tweet.read", "users.read", "bookmark.read", "offline.access"],
+        monthly_post_reads: 12,
+        monthly_post_read_budget: 1000,
+      },
+    }),
+  );
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Sync bookmarks" })).toBeVisible();
+  await page.getByPlaceholder("https://x.com/user/status/123").fill("https://x.com/researcher/status/123");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Post saved through the official X API.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Disconnect X" })).toBeVisible();
 });

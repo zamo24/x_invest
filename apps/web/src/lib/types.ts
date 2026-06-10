@@ -35,6 +35,22 @@ export type LibraryItem = {
   title: string | null;
   folder_id: string | null;
   folder_name: string | null;
+  content_status: string;
+  last_verified_at: string | null;
+  unavailable_reason: string | null;
+};
+
+export type XIntegrationStatus = {
+  connected: boolean;
+  status: string;
+  x_user_id: string | null;
+  x_username: string | null;
+  granted_scopes: string[];
+  connected_at: string | null;
+  last_bookmark_sync_at: string | null;
+  last_bookmark_sync_result: Record<string, unknown> | null;
+  monthly_post_reads: number;
+  monthly_post_read_budget: number;
 };
 
 export type ThreadCaptureSummary = {

@@ -5,12 +5,13 @@ import { auth } from "@clerk/nextjs/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PRODUCT_NAME } from "@/lib/product";
 
 const workflow = [
   {
     step: "01",
     title: "Save the source",
-    description: "Capture useful X tweets, threads, and articles while the research is in front of you.",
+    description: "Connect X and sync bookmarks through the official API.",
   },
   {
     step: "02",
@@ -37,7 +38,7 @@ export default async function Home() {
     <main className="min-h-screen">
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/" className="font-semibold tracking-tight text-slate-950 dark:text-white">
-          X Investor Copilot
+          {PRODUCT_NAME}
         </Link>
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="sm">
@@ -60,8 +61,7 @@ export default async function Home() {
             Never lose an investment thesis.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
-            Save valuable research from X, organize it around your investment ideas, and ask source-cited questions when
-            it matters later.
+            Connect your X account and turn bookmarks and saved posts into a searchable, source-cited research library.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button asChild size="lg">
@@ -74,7 +74,7 @@ export default async function Home() {
             ) : null}
           </div>
           <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-            Built for investors who have outgrown bookmarks, screenshots, and forgotten browser tabs.
+            Official X API connection required. Threads are reconstructed on a best-effort basis.
           </p>
         </div>
 
@@ -141,7 +141,8 @@ export default async function Home() {
 
       <footer className="border-t border-slate-200 dark:border-slate-800">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap gap-x-6 gap-y-2 px-5 py-8 text-sm text-slate-500 sm:px-8 dark:text-slate-400">
-          <span>X Investor Copilot</span>
+          <span>{PRODUCT_NAME}</span>
+          <span>Not affiliated with X.</span>
           <Link href="/privacy" className="hover:text-slate-950 dark:hover:text-white">
             Privacy
           </Link>

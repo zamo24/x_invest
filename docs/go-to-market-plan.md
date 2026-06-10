@@ -1,6 +1,6 @@
 # Go-To-Market Plan
 
-This plan covers the first 90 days of customer acquisition for X Investor Copilot. It prioritizes learning, activation,
+This plan covers the first 90 days of customer acquisition for Investor Research Copilot. It prioritizes learning, activation,
 and retention before broad distribution or paid advertising.
 
 ## Implementation Status
@@ -27,7 +27,7 @@ Primary promise:
 
 > Never lose an investment thesis. Save valuable research from X, organize it, and ask source-cited questions later.
 
-X Investor Copilot is a personal research memory for active retail investors. It is not a stock picker, trading signal,
+Investor Research Copilot is a personal research memory for active retail investors. It is not a stock picker, trading signal,
 or source of investment advice.
 
 ### Ideal Customer Profile
@@ -35,7 +35,7 @@ or source of investment advice.
 The initial customer:
 
 - Is an active retail investor who uses X several times per week for research.
-- Saves at least 20 investment-related tweets, threads, or articles each month.
+- Saves at least 20 investment-related posts or threads each month.
 - Currently relies on bookmarks, notes, screenshots, browser tabs, or memory.
 - Regularly struggles to find an old thesis, source, or update.
 - Values source traceability and is willing to pay for a better research workflow.
@@ -115,8 +115,8 @@ With 5-10 marketing hours available each week, use this cadence:
 
 Use this as a starting point and personalize the opening sentence:
 
-> I built a tool for investors who save valuable X threads and then cannot find them later. It lets you save tweets,
-> threads, and articles, then ask source-cited questions across your personal research library. I am onboarding a small
+> I built a tool for investors who save valuable X posts and threads and then cannot find them later. It connects to
+> bookmarks through the official X API, then supports source-cited questions across a personal research library. I am onboarding a small
 > free beta cohort and would value feedback from someone who actively researches on X. Interested in a 15-minute
 > walkthrough?
 

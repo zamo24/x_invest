@@ -66,7 +66,7 @@ export default function BetaPage() {
               </label>
               <label className="flex gap-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 <input name="research_fit" value="confirmed" type="checkbox" required className="mt-1 size-4" />
-                I actively conduct my own investment research and understand that X Investor Copilot does not provide
+                I actively conduct my own investment research and understand that Investor Research Copilot does not provide
                 investment advice.
               </label>
               <Button type="submit" size="lg">
@@ -76,7 +76,7 @@ export default function BetaPage() {
           ) : supportEmail ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
               Beta applications are currently handled by email. Contact{" "}
-              <a className="font-semibold underline" href={`mailto:${supportEmail}?subject=X Investor Copilot beta`}>
+              <a className="font-semibold underline" href={`mailto:${supportEmail}?subject=Investor Research Copilot beta`}>
                 {supportEmail}
               </a>{" "}
               with a short description of how you currently save investment research from X.

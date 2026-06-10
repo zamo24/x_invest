@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PRODUCT_NAME } from "@/lib/product";
 
 const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
@@ -6,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl px-5 py-12 sm:px-8">
       <Link href="/" className="text-sm text-emerald-700 hover:underline dark:text-emerald-300">
-        Back to X Investor Copilot
+        Back to {PRODUCT_NAME}
       </Link>
       <h1 className="mt-6 text-4xl font-semibold tracking-tight">Privacy Policy</h1>
       <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Last updated: June 8, 2026</p>
@@ -15,9 +16,9 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-xl font-semibold text-slate-950 dark:text-white">Information we process</h2>
           <p className="mt-2">
-            X Investor Copilot processes account information, saved X tweets, threads and articles, folders, chat
-            messages, cited answers, model settings, and operational request metadata needed to provide the service.
-            If you provide your own model API key, it is encrypted before storage.
+            {PRODUCT_NAME} processes account information, encrypted X OAuth tokens, X API post and bookmark content,
+            folders, chat messages, cited answers, model settings, source-verification results, and operational usage
+            metadata. If you provide your own model API key, it is encrypted before storage.
           </p>
         </section>
         <section>
@@ -31,10 +32,9 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-xl font-semibold text-slate-950 dark:text-white">Chrome Limited Use disclosure</h2>
           <p className="mt-2">
-            The extension captures only content you explicitly choose to save from visible X pages. Use and transfer of
-            information received from Google APIs follows the Chrome Web Store User Data Policy, including its Limited
-            Use requirements. The extension does not sell user data, use it for advertising, or capture browsing
-            activity unrelated to the product&apos;s single purpose.
+            The extension reads only the active X post URL after an explicit save action and sends no page DOM content.
+            It does not inject scripts into X pages. Use and transfer of information received from Google APIs follows
+            the Chrome Web Store User Data Policy, including its Limited Use requirements.
           </p>
         </section>
         <section>
@@ -48,9 +48,11 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-xl font-semibold text-slate-950 dark:text-white">Retention and control</h2>
           <p className="mt-2">
-            We retain information while your account is active and as needed for security, legal, and operational
-            purposes. You may revoke extension tokens at any time. Contact us to request access, correction, or deletion
-            of your account information.
+            Disconnecting X deletes stored X OAuth tokens but preserves the saved library. Source revalidation may mark
+            current content unavailable. During this phase, historical snapshots, embeddings, and persisted chat
+            citations are intentionally retained and deletion or modification events are not propagated through them.
+            This retention model requires legal review and written X approval before the service can be described as
+            fully compliant with X policies.
           </p>
         </section>
         <section>

@@ -1,275 +1,74 @@
-# Technical Report: X Investor Copilot Codebase
+# Technical Report: Investor Research Copilot
 
-This report reflects the current repository state at:
-`C:\Users\zacka\x_investor_copilot`
+## System Overview
 
-Primary references:
-- `README.md`
-- `docker-compose.yml`
-- `infra/docker-compose.yml`
-- `apps/api/app`
-- `apps/web/src`
-- `apps/extension`
+The monorepo contains a FastAPI/PostgreSQL/pgvector API, Next.js/Clerk dashboard, and Chrome Manifest
+V3 extension. PostgreSQL is the system of record and vector store. Application data is tenant-scoped
+by `user_id`. Local deterministic embedding and chat modes remain supported.
 
-## 1. System Overview
+## Official X API Integration
 
-This monorepo implements a B2C "save from X + chat over saved corpus" MVP with three runtime components:
+X content ingestion is server-side through a centralized typed client. The client handles encrypted
+OAuth 2.0 PKCE credentials, refresh, single and batch post lookup, authenticated bookmarks, bookmark
+folders, conversation search, normalized errors, and usage-budget enforcement.
 
-1. `apps/api` - FastAPI, SQLAlchemy, Alembic, Postgres, and pgvector.
-2. `apps/web` - Next.js App Router dashboard with Clerk auth and API proxy routes.
-3. `apps/extension` - Chrome Manifest V3 extension for X capture and side-panel chat.
+The extension is URL-only. It has no X content scripts, broad X host permission, scripting permission,
+DOM extraction, injected toolbar, reply automation, or X Article extraction. Explicit save actions
+send only URL, optional folder ID, and `post` or `author_thread` mode.
 
-The architecture remains deliberately compact:
+## Data Model And Migration
 
-- Postgres is the system of record and vector store.
-- Shared tables use `user_id` as the tenant and future shard-routing key.
-- Ingestion, chunking, embedding, and DB writes are synchronous.
-- Extension authentication uses PATs.
-- Web authentication uses Clerk session JWTs forwarded to the API.
-- The API verifies Clerk JWTs directly with Clerk JWKS.
+Migration `20260610_0009_x_api_integration.py` adds:
 
-The accepted multi-tenant storage and scaling strategy is documented in
-`docs/architecture/001-multi-tenant-storage.md`.
+- Per-user encrypted X integrations.
+- Hashed, expiring, single-use OAuth state with encrypted PKCE verifier.
+- X API usage-accounting records.
+- X bookmark-folder to local-folder mappings.
+- Current-source verification status, timestamps, and unavailable reason.
 
-## 2. Core Design Decisions
+Legacy X records are marked pending verification. Legacy full-body X Article records are marked
+unsupported. Existing folders, current content, chunks, embeddings, immutable thread captures, and
+persisted chat citations are preserved.
 
-### Separate Auth Planes
+## Ingestion And History
 
-- Extension requests use PATs (`xic_pat_...`) stored as HMAC-SHA256 hashes with `TOKEN_PEPPER`.
-- Web requests use Clerk session JWTs, verified in `apps/api/app/core/clerk_jwt.py`.
-- Shared user-owned APIs accept either auth type through `get_any_authenticated_user`.
+`POST /v1/sources/x` retrieves a post through the official X API and upserts current library content.
+Current chunks and embeddings are regenerated only when normalized content changes.
 
-This keeps extension setup simple while avoiding the old header-trust shortcut for web identity.
+Author-thread mode searches by `conversation_id`, filters to the root author, orders results
+chronologically, and appends an immutable capture. Captures are marked partial when completeness
+cannot be guaranteed. Full-body X Article capture is disabled.
 
-### Postgres And pgvector
+Bookmark sync paginates and upserts through the same normalized ingestion service. It maps bookmark
+folders without overwriting unrelated local folders and conservatively retains local sources removed
+from X.
 
-The database stores users, PATs, folders, X items, X threads, chunks, model settings, and chat history. Vector retrieval uses pgvector cosine distance over `chunks.embedding`.
+## Revalidation, Retrieval, And Chat
 
-### Local Defaults With Hosted Model Paths
+`python -m app.cli.revalidate_x` batches up to 100 current post IDs, refreshes changed current
+content, marks unavailable sources, records verification outcomes, and preserves historical
+snapshots and persisted citations. Retrieval prioritizes active verified content and the web library
+labels unavailable or unverified sources.
 
-The default local dev path uses deterministic local embeddings and a local rule-based answer builder:
+Chat remains source-cited and tenant-scoped. Protected content retrieved with one user's token is not
+made available to another user. The application does not train or fine-tune models using X content.
 
-- `EMBEDDING_MODEL=local-hash-v1`
-- `CHAT_MODEL=local-grounded-v1`
+## Security And Operations
 
-Hosted OpenAI paths are implemented for embeddings and chat completions when non-local models and keys are configured. Per-user BYOK OpenAI keys are encrypted before storage.
+- Clerk JWTs and extension PATs remain separate authentication planes.
+- PATs are HMAC-hashed and revocable.
+- X tokens and PKCE verifiers are encrypted at rest.
+- Only `tweet.read`, `users.read`, `bookmark.read`, and `offline.access` are requested.
+- X credentials and API calls remain server-side.
+- Per-operation usage records and configurable monthly/per-sync limits control cost.
+- External API calls are mocked in automated tests.
 
-### DOM-Only X Capture
+## Compliance Boundary
 
-The extension only captures user-visible DOM content after explicit user action. It does not crawl, intercept traffic, or run background scraping.
+This technical design is not a legal or X policy compliance guarantee. The current phase
+intentionally preserves immutable historical X content and does not propagate deletions or
+modifications through historical snapshots, embeddings, or persisted chat citations.
 
-## 3. Runtime Topology
-
-Top-level workspace:
-
-- `package.json`
-- `pnpm-workspace.yaml`
-
-Compose files:
-
-- `docker-compose.yml`
-- `infra/docker-compose.yml`
-
-Runtime graph:
-
-1. `db` starts `pgvector/pgvector:pg16`.
-2. `api` waits for DB health, runs Alembic migrations, then starts Uvicorn.
-3. `web` starts Next.js dev mode and proxies dashboard API calls to `api`.
-4. The browser extension calls `api` directly with a PAT.
-
-## 4. Backend
-
-Primary files:
-
-- `apps/api/app/main.py`
-- `apps/api/app/api/deps.py`
-- `apps/api/app/api/routes/*.py`
-- `apps/api/app/services/*.py`
-- `apps/api/app/db/models.py`
-
-Implemented API surface:
-
-- `GET /health`
-- `POST /v1/tokens`
-- `GET /v1/tokens`
-- `DELETE /v1/tokens/{id}`
-- `POST /v1/ingest/x`
-- `POST /v1/chat`
-- `GET /v1/chat/threads`
-- `GET /v1/chat/threads/{id}`
-- `PATCH /v1/chat/threads/{id}`
-- `DELETE /v1/chat/threads/{id}`
-- `GET /v1/model-settings`
-- `PUT /v1/model-settings`
-- `GET /v1/library/items`
-- `GET /v1/library/threads`
-- `GET /v1/library/threads/{id}?version=` latest or historical immutable capture detail
-- `GET /v1/library/folders`
-- `POST /v1/library/folders`
-- `DELETE /v1/library/folders/{id}`
-- `PATCH /v1/library/items/{id}/folder`
-- `PATCH /v1/library/threads/{id}/folder`
-
-## 5. Database Design
-
-Current model set:
-
-- `users`
-- `api_tokens`
-- `user_model_settings`
-- `x_folders`
-- `x_items`
-- `x_threads`
-- `x_thread_items`
-- `x_thread_captures`
-- `x_thread_capture_items`
-- `chunks`
-- `chat_threads`
-- `chat_messages`
-
-Migration sequence:
-
-1. Initial users/PAT/X item/thread/chunk schema.
-2. Thread dedupe/versioning support.
-3. Folder organization.
-4. User model settings and BYOK metadata.
-5. Reasoning effort.
-6. API token expiry.
-7. Persisted chat threads and messages.
-8. Immutable thread capture snapshots with backfill of existing latest-state threads.
-
-## 6. Ingest And Retrieval
-
-`POST /v1/ingest/x` supports:
-
-- Single tweet capture.
-- Thread capture with recapture versioning.
-- X article capture with long-content chunking.
-- Optional folder assignment.
-
-Each thread recapture appends an immutable capture record with copied tweet payloads and the exact macro chunk text.
-The existing thread and thread-item records remain the latest-state projection used by library listing, filtering, and retrieval.
-Thread detail can select any preserved capture version.
-
-The API creates `x_item` chunks for tweets/articles and `x_thread` macro chunks for threads. Article chunks are split into multiple body chunks for long-form content.
-
-Retrieval:
-
-- Embeds the query.
-- Searches `chunks` with pgvector cosine distance.
-- Oversamples candidates before metadata filtering.
-- Reranks filtered candidates with vector similarity, lexical overlap, and recency signals.
-- Supports author/date/folder filters and single saved-thread scope.
-
-## 7. Chat Generation
-
-Chat requests create or continue persisted chat threads. The API stores both user and assistant messages, including cited sources and model execution metadata.
-
-Generation modes:
-
-- Local mode returns a deterministic grounded answer from retrieved snippets.
-- Hosted/BYOK mode calls OpenAI chat completions.
-
-The OpenAI path asks for a natural conversational answer plus an internal list of source-grounded claims. The API validates those claims against retrieved source URLs and snippets, returns only validated cited sources, and falls back to a conservative local response when validation fails. Hosted models can also continue ordinary conversation when no saved source is relevant.
-
-## 8. Web App
-
-Primary files:
-
-- `apps/web/src/proxy.ts`
-- `apps/web/src/lib/server-api.ts`
-- `apps/web/src/app/app/*`
-- `apps/web/src/app/api/*`
-
-Current dashboard routes:
-
-- `/`
-- `/app/library`
-- `/app/chat`
-- `/app/settings/models`
-- `/app/settings/tokens`
-- `/app/threads/[id]`
-- `/sign-in/[[...sign-in]]`
-- `/sign-up/[[...sign-up]]`
-
-Dashboard capabilities:
-
-- Library browsing.
-- Server-backed library search, author filtering, folder filtering, and paged load-more results.
-- Folder create/delete and item/thread assignment.
-- API token create/revoke with expiry display.
-- Hosted/BYOK model settings.
-- Persisted chat thread selection, rename, delete, pagination, and message history.
-
-## 9. Extension
-
-Primary files:
-
-- `apps/extension/manifest.json`
-- `apps/extension/capture-core.js`
-- `apps/extension/content-script.js`
-- `apps/extension/background.js`
-- `apps/extension/options.js`
-- `apps/extension/sidepanel.js`
-
-Capabilities:
-
-- Configure PAT and API base URL.
-- Store PAT settings locally, migrate legacy sync settings, and validate production HTTPS URLs.
-- Request optional permission only for the exact configured production API origin.
-- Test authenticated API connectivity from extension options.
-- Inject X toolbar with folder selector.
-- Save tweet, thread, or article.
-- Open side panel.
-- Ask chat questions and continue saved chat threads.
-
-Known limitation: capture quality depends on X DOM structure and currently rendered/expanded content.
-
-## 10. Security And Operations
-
-Implemented hardening:
-
-- API verifies Clerk JWT issuer, signature, optional audience, and leeway.
-- PATs are random, prefix-validated, HMAC-hashed, expirable, and revocable.
-- API rejects wildcard CORS origins when credentials are enabled.
-- Production API configuration rejects broad extension-origin regexes and supports exact published extension IDs.
-- API emits request IDs and structured access/error logs.
-- BYOK API keys are encrypted with Fernet-compatible key derivation.
-- In-process fixed-window rate limits protect chat, ingest, and token routes.
-
-Remaining production considerations:
-
-- Configure real Clerk issuer/JWKS/audience values before exposing the API.
-- Use a strong `TOKEN_PEPPER` and `BYOK_ENCRYPTION_KEY`.
-- Follow `docs/extension-production.md` when publishing or rotating the extension/API origin.
-- Tune rate limits/quotas for production traffic patterns.
-- Use a distributed rate limiter or API gateway when running more than one API instance.
-
-## 11. Tests And Validation
-
-Current automated coverage:
-
-- API pytest integration tests for auth, observability, token expiry, article ingest, folders, model settings, grounded chat validation, and chat threads.
-- Extension Vitest/jsdom tests for tweet and article extraction.
-- Web Playwright smoke test for the landing page.
-- Web lint and production build checks.
-- GitHub Actions secret scan.
-
-Useful commands:
-
-```bash
-docker compose run --rm --build -e EMBEDDING_MODEL=local-hash-v1 -e CHAT_MODEL=local-grounded-v1 api python -m pytest -q
-pnpm -C apps/extension test
-pnpm -C apps/web lint
-pnpm -C apps/web build
-pnpm -C apps/web test:e2e:list
-```
-
-## 12. Remaining Engineering Priorities
-
-1. Broaden web e2e coverage for dashboard flows.
-2. Add distributed production rate limits and tighter operational controls.
-3. Implement the deterministic retrieval evaluation harness documented in `FUTURE_WORK.md`.
-4. Add total counts and cursor pagination for large library datasets.
-5. Improve extension side-panel scope/folder controls.
-6. Add observability metrics and runbook-level deployment docs.
+The product must not be represented as fully compliant with X policies until legal review and written
+X approval confirm the retention model. Remaining approval gates and deferred lifecycle work are
+documented in `docs/x-api-compliance.md`.

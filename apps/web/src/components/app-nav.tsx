@@ -13,6 +13,7 @@ const links = [
   { href: "/app/chat", label: "Chat" },
   { href: "/app/settings/models", label: "Models" },
   { href: "/app/settings/tokens", label: "API Tokens" },
+  { href: "/app/settings/x", label: "X Integration" },
 ];
 
 export function AppNav() {

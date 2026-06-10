@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PRODUCT_NAME } from "@/lib/product";
 
 const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
@@ -6,7 +7,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl px-5 py-12 sm:px-8">
       <Link href="/" className="text-sm text-emerald-700 hover:underline dark:text-emerald-300">
-        Back to X Investor Copilot
+        Back to {PRODUCT_NAME}
       </Link>
       <h1 className="mt-6 text-4xl font-semibold tracking-tight">Terms of Service</h1>
       <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Last updated: June 8, 2026</p>
@@ -15,8 +16,18 @@ export default function TermsPage() {
         <section>
           <h2 className="text-xl font-semibold text-slate-950 dark:text-white">Service purpose</h2>
           <p className="mt-2">
-            X Investor Copilot is a research organization and retrieval tool. It helps users save, organize, and ask
-            questions about sources they selected.
+            {PRODUCT_NAME} is a research organization and retrieval tool that processes X content through the official
+            X API. Bookmark sync is the primary workflow. Full X Article bodies are unsupported, and thread
+            reconstruction is best effort.
+          </p>
+        </section>
+        <section>
+          <h2 className="text-xl font-semibold text-slate-950 dark:text-white">Third-party services and retention</h2>
+          <p className="mt-2">
+            X, authentication providers, hosting providers, and selected AI model providers may process data needed to
+            provide the service. Historical snapshots and persisted citations are intentionally preserved during this
+            phase even when current X content becomes unavailable. This policy remains subject to legal review and
+            written X approval. The service is not affiliated with X.
           </p>
         </section>
         <section>

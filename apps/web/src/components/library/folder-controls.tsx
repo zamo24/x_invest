@@ -60,7 +60,7 @@ export function FolderControls({
     <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
       <div className="space-y-1">
         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Manage topic folders</p>
-        <p className="text-xs text-slate-600 dark:text-slate-300">Group your saved tweets and threads by thesis topic.</p>
+        <p className="text-xs text-slate-600 dark:text-slate-300">Group your saved posts and threads by thesis topic.</p>
       </div>
 
       <p className="text-right text-xs text-slate-500 dark:text-slate-400">{folders.length} folders</p>
@@ -102,7 +102,7 @@ export function FolderControls({
 
       <div className="space-y-1">
         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Find saved content</p>
-        <p className="text-xs text-slate-600 dark:text-slate-300">Search across threads and tweets, then narrow by folder or X user.</p>
+        <p className="text-xs text-slate-600 dark:text-slate-300">Search across threads and posts, then narrow by folder or X user.</p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -111,7 +111,7 @@ export function FolderControls({
           <Input
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder="Search text, title, URL, author, tweet ID..."
+            placeholder="Search text, title, URL, author, post ID..."
           />
         </div>
 
